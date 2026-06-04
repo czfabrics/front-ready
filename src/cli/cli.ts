@@ -1,0 +1,8 @@
+import { deployOnBucketCommand } from '#cli/deploy_on_bucket_command'
+import { subcommands } from 'cmd-ts'
+import packageInfo from 'package.json'
+
+export const cli = subcommands({
+    name: packageInfo.name,
+    cmds: { deploy: deployOnBucketCommand },
+})
