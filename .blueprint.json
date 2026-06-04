@@ -1,0 +1,21 @@
+{
+    "package": "package.json",
+    "blueprint": ".blueprint.md",
+    "input": ".blueprint.md",
+    "output": "README.md",
+    "headingPrefix": {
+        "1": "",
+        "2": ""
+    },
+    "line": "dark",
+    "ids": {
+        "npm": "@czfabrics/front-ready"
+    },
+    "badges": [
+        {
+            "alt": "Maintained",
+            "img": "https://img.shields.io/badge/Maintained%3F-yes-green.svg",
+            "url": "https://github.com/czfabrics/front-ready/graphs/commit-activity"
+        }
+    ]
+}

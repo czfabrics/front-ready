@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+        "paths": {
+            "#core/*": ["src/core/*"],
+            "#errors/*": ["src/errors/*"],
+            "#helpers/*": ["src/helpers/*"],
+            "#factories/*": ["src/factories/*"],
+            "#contexts/*": ["src/core/*"],
+            "#cli/*": ["src/cli/*"],
+            "#file_object/*": ["src/file_object/*"],
+        },
+    },
+}
