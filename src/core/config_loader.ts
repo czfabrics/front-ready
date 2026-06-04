@@ -1,5 +1,5 @@
 import { ConfigError } from '#errors/config'
-import { ZodError } from '#errors/config_format'
+import { ConfigFormatError } from '#errors/config_format'
 import { promiseIntoEffect } from '#helpers/promise_into_effect'
 import { loadConfig as c12LoadConfig } from 'c12'
 import { Effect } from 'effect'
@@ -24,6 +24,7 @@ const ConfigSchema = z.object({
         z.object({
             type: z.literal('angular'),
             angular: z.object({
+                projectName: z.string().nonempty(),
                 angularJsonPath: z.string().nonempty(),
                 configurationName: z.string().nonempty().optional(),
             }),
@@ -52,7 +53,7 @@ export const loadConfig = Effect.gen(function* () {
     }
 
     return yield* Effect.fail(
-        new ZodError({
+        new ConfigFormatError({
             cause: parsedConfig.error,
         })
     )

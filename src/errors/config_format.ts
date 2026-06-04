@@ -1,7 +1,7 @@
 import { Data } from 'effect'
 import z, { ZodError as TrueZodError } from 'zod'
 
-export class ZodError extends Data.TaggedError('ZodError')<{
+export class ConfigFormatError extends Data.TaggedError('ConfigFormatError')<{
     readonly cause: TrueZodError
 }> {
     public override get message(): string {

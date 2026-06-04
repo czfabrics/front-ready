@@ -7,7 +7,7 @@ export const runCommand = function (
 ) {
     return Effect.scoped(
         pipe(
-            Command.start(command),
+            Command.start(command.pipe(Command.runInShell(true))),
             Effect.flatMap((process) =>
                 Effect.all(
                     [
