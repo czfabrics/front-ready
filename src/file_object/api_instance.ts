@@ -13,13 +13,13 @@ export const FileObjectApiInstanceLive = Layer.effect(
         const config = yield* InternalConfigContext
 
         return new S3Client({
-            region: config.bucket.region,
-            apiVersion: config.bucket.apiVersion,
-            endpoint: config.bucket.endpoint,
-            forcePathStyle: config.bucket.forcePathStyle,
+            region: config.bucket.params.region,
+            apiVersion: config.bucket.params.apiVersion,
+            endpoint: config.bucket.params.endpoint,
+            forcePathStyle: config.bucket.params.forcePathStyle,
             credentials: {
-                accessKeyId: config.bucket.credentials.accessKeyId,
-                secretAccessKey: config.bucket.credentials.secretAccessKey,
+                accessKeyId: config.bucket.params.credentials.accessKeyId,
+                secretAccessKey: config.bucket.params.credentials.secretAccessKey,
             },
         })
     })

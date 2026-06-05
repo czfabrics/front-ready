@@ -68,36 +68,42 @@ type ConfigSchema = typeof ConfigSchema
 const ConfigSchema = z.object({
     bucket: z.object({
         namePrefix: z.string().nonempty(),
-        region: z.string().nonempty(),
-        apiVersion: z.string().nonempty(),
-        endpoint: z.string().nonempty(),
-        forcePathStyle: z.union([z.stringbool(), z.boolean()]).optional(),
-        credentials: z.object({
-            accessKeyId: z.string().nonempty(),
-            secretAccessKey: z.string().nonempty(),
-        }),
-    }),
-    bucketFront: z.object({
-        cacheControlMapping: z
-            .record(
-                z.templateLiteral([z.literal('^'), z.string(), z.literal('$')]),
-                CacheControlSchema
-            )
-            .default({
-                '^index.html$':
-                    'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
-                '^assets/.+$':
-                    'max-age=86400, stale-while-revalidate=600, stale-if-error=86400',
-                '^translate/.+$':
-                    'max-age=14400, stale-while-revalidate=600, stale-if-error=86400',
-                '^.+$': 'max-age=31536000, stale-while-revalidate=600, stale-if-error=86400',
+        params: z.object({
+            region: z.string().nonempty(),
+            apiVersion: z.string().nonempty(),
+            endpoint: z.string().nonempty(),
+            forcePathStyle: z.union([z.stringbool(), z.boolean()]).optional(),
+            credentials: z.object({
+                accessKeyId: z.string().nonempty(),
+                secretAccessKey: z.string().nonempty(),
             }),
-        indexDocumentSuffix: z.string().nonempty().default('index.html'),
-        errorDocumentKey: z.string().nonempty().default('index.html'),
-    }),
-    upload: z.object({
-        concurrency: z.number().positive().default(50),
-        filesToTheEnd: z.array(z.string()).default(['index.html']),
+        }),
+        front: z
+            .object({
+                cacheControlMapping: z
+                    .record(
+                        z.templateLiteral([z.literal('^'), z.string(), z.literal('$')]),
+                        CacheControlSchema
+                    )
+                    .default({
+                        '^index.html$':
+                            'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
+                        '^assets/.+$':
+                            'max-age=86400, stale-while-revalidate=600, stale-if-error=86400',
+                        '^translate/.+$':
+                            'max-age=14400, stale-while-revalidate=600, stale-if-error=86400',
+                        '^.+$': 'max-age=31536000, stale-while-revalidate=600, stale-if-error=86400',
+                    }),
+                indexDocumentSuffix: z.string().nonempty().default('index.html'),
+                errorDocumentKey: z.string().nonempty().default('index.html'),
+            })
+            .prefault({}),
+        upload: z
+            .object({
+                concurrency: z.number().positive().default(50),
+                filesToTheEnd: z.array(z.string()).default(['index.html']),
+            })
+            .prefault({}),
     }),
     front: z.discriminatedUnion('type', [
         z.object({

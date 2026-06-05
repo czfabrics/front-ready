@@ -23,7 +23,7 @@ const FileObjectBucketContextLive = Layer.effect(
         const config = yield* InternalConfigContext
         return {
             bucketName: front.bucketName,
-            region: config.bucket.region as BucketLocationConstraint,
+            region: config.bucket.params.region as BucketLocationConstraint,
         }
     })
 )
@@ -41,15 +41,17 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
                     return fileObjectRepository.doesBucketExist()
                 },
                 listFrontBuildFiles: () => {
-                    return fileRepository.listFiles(configContext.upload.filesToTheEnd)
+                    return fileRepository.listFiles(
+                        configContext.bucket.upload.filesToTheEnd
+                    )
                 },
                 createFrontBucket: () =>
                     Effect.gen(function* () {
                         yield* fileObjectRepository.createBucket()
                         yield* fileObjectRepository.setPublicReadAclOnBucket()
                         yield* fileObjectRepository.setWebsiteConfigurationOnBucket(
-                            configContext.bucketFront.indexDocumentSuffix,
-                            configContext.bucketFront.errorDocumentKey
+                            configContext.bucket.front.indexDocumentSuffix,
+                            configContext.bucket.front.errorDocumentKey
                         )
                     }),
                 uploadFrontFilesToBucket: (
@@ -61,7 +63,7 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
                             Effect.gen(function* () {
                                 const object = detectAndFillCacheControl(
                                     yield* fileIntoObject(file),
-                                    configContext.bucketFront.cacheControlMapping
+                                    configContext.bucket.front.cacheControlMapping
                                 )
 
                                 yield* fileObjectRepository.putObject(object)
@@ -71,7 +73,7 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
                         )
 
                         yield* Effect.all(fileUploadings, {
-                            concurrency: configContext.upload.concurrency,
+                            concurrency: configContext.bucket.upload.concurrency,
                         })
                     }),
             }
