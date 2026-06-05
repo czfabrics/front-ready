@@ -2,10 +2,10 @@ import { startCli } from '#cli/cli_starter'
 import { CliCommandContext } from '#contexts/cli_command'
 import { InternalConfigContext } from '#contexts/internal_config'
 import { makeFrontDeploymentContextLayer } from '#factories/front_deployment_context'
+import { CreateFrontBucketUseCase } from '#use_cases/create_front_bucket'
 import { log, outro } from '@clack/prompts'
 import { command } from 'cmd-ts'
 import { Effect, Inspectable, Layer } from 'effect'
-import { CreateFrontBucketUseCase } from 'src/use_cases/create_front_bucket'
 
 export const createFrontBucketCommand = command({
     name: 'create',

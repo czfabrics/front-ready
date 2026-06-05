@@ -6,6 +6,7 @@
             "#helpers/*": ["src/helpers/*"],
             "#factories/*": ["src/factories/*"],
             "#contexts/*": ["src/contexts/*"],
+            "#use_cases/*": ["src/use_cases/*"],
             "#cli/*": ["src/cli/*"],
             "#file_object/*": ["src/file_object/*"],
         },
