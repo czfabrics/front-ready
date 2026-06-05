@@ -37,6 +37,9 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
             const fileObjectRepository = yield* FileObjectRepository
 
             return {
+                doesFrontBucketExist: () => {
+                    return fileObjectRepository.doesBucketExist()
+                },
                 listFrontBuildFiles: () => {
                     return fileRepository.listFiles(configContext.upload.filesToTheEnd)
                 },

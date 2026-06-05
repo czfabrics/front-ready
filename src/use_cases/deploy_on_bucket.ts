@@ -26,6 +26,7 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
                         if (!shouldContinue) {
                             log.message(`User answered no`)
                             outro(`Deployment aborted`)
+                            return
                         }
 
                         yield* runFrontBuildCommand
