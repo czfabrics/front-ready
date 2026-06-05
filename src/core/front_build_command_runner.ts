@@ -1,3 +1,4 @@
+import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { runCommand } from '#core/command_runner'
 import { CommandError } from '#errors/command'
 import { TUiWrapperError } from '#errors/interop/tui_wrapper'
@@ -5,7 +6,6 @@ import { toEffect } from '#helpers/promise'
 import { tasks } from '@clack/prompts'
 import { CommandExecutor } from '@effect/platform'
 import { Duration, Effect, Runtime } from 'effect'
-import { FrontDeploymentContext } from 'src/context/front_deployment'
 
 export const runFrontBuildCommand = Effect.gen(function* () {
     const deploymentContext = yield* FrontDeploymentContext

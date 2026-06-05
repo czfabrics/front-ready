@@ -1,3 +1,4 @@
+import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { InternalConfig } from '#core/config_loader'
 import { TUiWrapperError } from '#errors/interop/tui_wrapper'
 import { makeDeploymentBucketName } from '#factories/bucket_name'
@@ -6,7 +7,6 @@ import { toEffect } from '#helpers/promise'
 import { log, select } from '@clack/prompts'
 import { Command } from '@effect/platform'
 import { Effect, Layer, Match } from 'effect'
-import { FrontDeploymentContext } from 'src/context/front_deployment'
 
 export const makeFrontDeploymentContextLayer = function (rootConfig: InternalConfig) {
     return Layer.effect(

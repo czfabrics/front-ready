@@ -5,7 +5,7 @@
             "#errors/*": ["src/errors/*"],
             "#helpers/*": ["src/helpers/*"],
             "#factories/*": ["src/factories/*"],
-            "#contexts/*": ["src/core/*"],
+            "#contexts/*": ["src/contexts/*"],
             "#cli/*": ["src/cli/*"],
             "#file_object/*": ["src/file_object/*"],
         },

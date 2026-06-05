@@ -20,6 +20,7 @@
         "c12": "^4.0.0-beta.5",
         "cmd-ts": "^0.15.0",
         "effect": "^3.21.2",
+        "file-type": "^22.0.1",
         "zod": "^4.4.3"
     },
     "devDependencies": {

@@ -1,44 +1,45 @@
 import { startCli } from '#cli/cli_starter'
-import { runFrontBuildCommand } from '#core/front_build_command_runner'
+import { CliCommandContext } from '#contexts/cli_command'
+import { InternalConfigContext } from '#contexts/internal_config'
 import { makeFrontDeploymentContextLayer } from '#factories/front_deployment_context'
-import { confirm, log, outro } from '@clack/prompts'
+import { log, outro } from '@clack/prompts'
 import { command } from 'cmd-ts'
-import { Effect, Layer } from 'effect'
-import { CliCommandContext } from 'src/context/cli_command'
-import { FrontDeploymentContext } from 'src/context/front_deployment'
+import { Effect, Inspectable, Layer } from 'effect'
+import { DeployOnBucketUseCase } from 'src/use_cases/deploy_on_bucket'
 
 export const deployOnBucketCommand = command({
     name: 'deploy',
     description: 'TODO',
     args: {},
     handler: function () {
-        const commandContextLayer = Layer.succeed(CliCommandContext, {
+        const CommandContextLayer = Layer.succeed(CliCommandContext, {
             commandName: this.name,
         })
 
         return Effect.gen(function* () {
             const { config } = yield* startCli
-            const deploymentContextLayer = makeFrontDeploymentContextLayer(config)
+
+            const ConfigContextLayer = Layer.succeed(InternalConfigContext, config)
+            const DeploymentContextLayer = makeFrontDeploymentContextLayer(config)
 
             yield* Effect.gen(function* () {
-                const deploymentContext = yield* FrontDeploymentContext
-                const shouldContinue = yield* Effect.tryPromise(() =>
-                    confirm({
-                        message: `Do you want to build and upload '${deploymentContext.buildOutputPath}' to bucket '${deploymentContext.bucketName}'?`,
+                const useCase = yield* DeployOnBucketUseCase
+
+                yield* useCase.run()
+
+                outro(`Deployment finished`)
+            }).pipe(
+                Effect.provide(DeployOnBucketUseCase.Default),
+                Effect.provide(ConfigContextLayer),
+                Effect.provide(DeploymentContextLayer),
+                Effect.catchAll((error) =>
+                    Effect.gen(function* () {
+                        log.error(error.message)
+                        log.message(Inspectable.toStringUnknown(error))
+                        outro(`Deployment aborted`)
                     })
                 )
-
-                if (!shouldContinue) {
-                    log.message(`User answered no`)
-                    outro(`Deployment aborted`)
-                }
-
-                yield* runFrontBuildCommand
-
-                // Upload...
-
-                // result: number of file, size etc...
-            }).pipe(Effect.provide(deploymentContextLayer))
-        }).pipe(Effect.provide(commandContextLayer))
+            )
+        }).pipe(Effect.provide(CommandContextLayer))
     },
 })
