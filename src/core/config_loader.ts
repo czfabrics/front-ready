@@ -67,7 +67,10 @@ export type InternalConfig = z.output<typeof ConfigSchema>
 type ConfigSchema = typeof ConfigSchema
 const ConfigSchema = z.object({
     bucket: z.object({
-        namePrefix: z.string().nonempty(),
+        namePrefix: z
+            .string()
+            .nonempty()
+            .regex(/[a-z-]*/, 'String should be kekab-case string'),
         params: z.object({
             region: z.string().nonempty(),
             apiVersion: z.string().nonempty(),
