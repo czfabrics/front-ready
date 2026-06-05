@@ -1,8 +1,8 @@
 import { InternalConfig } from '#core/config_loader'
-import { PromptError } from '#errors/prompt'
+import { TUiWrapperError } from '#errors/interop/tui_wrapper'
 import { makeDeploymentBucketName } from '#factories/bucket_name'
 import { resolveAngularConfigurations } from '#helpers/angular'
-import { promiseIntoEffect } from '#helpers/promise_into_effect'
+import { toEffect } from '#helpers/promise'
 import { log, select } from '@clack/prompts'
 import { Command } from '@effect/platform'
 import { Effect, Layer, Match } from 'effect'
@@ -45,17 +45,12 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
                         label: name,
                     }))
 
-                    const configurationName = yield* promiseIntoEffect(
+                    const configurationName = yield* toEffect(
                         select({
                             message: 'Pick an Angular configuration.',
                             options: options,
                         }),
-                        {
-                            errorConstructor: PromptError,
-                            default: {
-                                message: 'Unable to parse user input',
-                            },
-                        }
+                        TUiWrapperError
                     )
 
                     return {

@@ -1,6 +1,6 @@
-import { ConfigError } from '#errors/config'
 import { ConfigFormatError } from '#errors/config_format'
-import { promiseIntoEffect } from '#helpers/promise_into_effect'
+import { ConfigWrapperError } from '#errors/interop/config_wrapper'
+import { toEffect } from '#helpers/promise'
 import { loadConfig as c12LoadConfig } from 'c12'
 import { Effect } from 'effect'
 import z from 'zod'
@@ -33,17 +33,12 @@ const ConfigSchema = z.object({
 })
 
 export const loadConfig = Effect.gen(function* () {
-    const { config } = yield* promiseIntoEffect(
+    const { config } = yield* toEffect(
         c12LoadConfig<Config>({
             name: 'frontready',
             configFileRequired: true,
         }),
-        {
-            errorConstructor: ConfigError,
-            default: {
-                message: 'Unable to load the configuration',
-            },
-        }
+        ConfigWrapperError
     )
 
     const parsedConfig = ConfigSchema.safeParse(config)

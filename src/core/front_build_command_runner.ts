@@ -1,7 +1,7 @@
 import { runCommand } from '#core/command_runner'
 import { CommandError } from '#errors/command'
-import { InternalError } from '#errors/internal'
-import { promiseIntoEffect } from '#helpers/promise_into_effect'
+import { TUiWrapperError } from '#errors/interop/tui_wrapper'
+import { toEffect } from '#helpers/promise'
 import { tasks } from '@clack/prompts'
 import { CommandExecutor } from '@effect/platform'
 import { Duration, Effect, Runtime } from 'effect'
@@ -13,7 +13,7 @@ export const runFrontBuildCommand = Effect.gen(function* () {
     const runtime = yield* Effect.runtime<CommandExecutor.CommandExecutor>()
     const runPromise = Runtime.runPromise(runtime)
 
-    yield* promiseIntoEffect(
+    yield* toEffect(
         tasks([
             {
                 title: 'Building front',
@@ -39,11 +39,6 @@ export const runFrontBuildCommand = Effect.gen(function* () {
                 },
             },
         ]),
-        {
-            errorConstructor: InternalError,
-            default: {
-                message: 'Unable to run build command',
-            },
-        }
+        TUiWrapperError
     )
 })
