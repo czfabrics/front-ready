@@ -10,8 +10,6 @@
         "type": "git",
         "url": "git+https://github.com/czfabrics/front-ready.git"
     },
-    "main": "./.dist/index.cjs",
-    "module": "./.dist/index.mjs",
     "dependencies": {
         "@aws-sdk/client-s3": "^3.1061.0",
         "@clack/prompts": "^1.5.1",
@@ -38,6 +36,9 @@
         "vitest": "^4.0.18",
         "vscode-generate-index-standalone": "^1.7.1"
     },
+    "main": "./.dist/index.cjs",
+    "module": "./.dist/index.mjs",
+    "types": "./.dist/index.d.ts",
     "exports": {
         "./package.json": "./package.json",
         ".": {
@@ -46,6 +47,7 @@
             "require": "./.dist/index.cjs"
         }
     },
+    "bin": "./.dist/main.mjs",
     "bugs": {
         "url": "https://github.com/czfabrics/front-ready/issues"
     },
@@ -90,6 +92,5 @@
         "build": "rimraf .dist && bun run prepare:index && bun run prepare:dist && bun run prepare:declaration && bun run prepare:imports",
         "generate:readme": "readme generate --config .blueprint.json",
         "prepublishOnly": "bun run generate:readme && bun run build"
-    },
-    "types": "./.dist/index.d.ts"
+    }
 }

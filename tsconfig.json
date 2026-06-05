@@ -1,6 +1,6 @@
 {
     "extends": ["./tsconfig.compiler.json", "./tsconfig.alias.json"],
-    "include": ["index.ts", "main.ts", "src/**/*.ts"],
+    "include": ["index.ts", "main.ts", "build.ts", "src/**/*.ts"],
     "compilerOptions": {
         "baseUrl": ".",
         "rootDir": ".",
