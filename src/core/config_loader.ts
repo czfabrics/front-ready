@@ -78,10 +78,20 @@ const ConfigSchema = z.object({
         }),
     }),
     bucketFront: z.object({
-        cacheControlMapping: z.record(
-            z.templateLiteral([z.literal('^'), z.string(), z.literal('$')]),
-            CacheControlSchema
-        ),
+        cacheControlMapping: z
+            .record(
+                z.templateLiteral([z.literal('^'), z.string(), z.literal('$')]),
+                CacheControlSchema
+            )
+            .default({
+                '^index.html$':
+                    'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
+                '^assets/.+$':
+                    'max-age=86400, stale-while-revalidate=600, stale-if-error=86400',
+                '^translate/.+$':
+                    'max-age=14400, stale-while-revalidate=600, stale-if-error=86400',
+                '^.+$': 'max-age=31536000, stale-while-revalidate=600, stale-if-error=86400',
+            }),
         indexDocumentSuffix: z.string().nonempty().default('index.html'),
         errorDocumentKey: z.string().nonempty().default('index.html'),
     }),
