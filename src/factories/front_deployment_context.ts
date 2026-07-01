@@ -58,6 +58,18 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
           }
         })
       ),
+      Match.when({ type: 'custom' }, (config) =>
+        Effect.gen(function* () {
+          return {
+            command: Command.make(config.custom.command, ...config.custom.args),
+            bucketName: makeDeploymentBucketName(
+              rootConfig,
+              config.custom.environmentName
+            ),
+            buildOutputPath: config.custom.buildOutputPath,
+          }
+        })
+      ),
       Match.exhaustive
     )
   )

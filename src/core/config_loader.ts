@@ -117,6 +117,15 @@ const ConfigSchema = z.object({
         configurationName: z.string().nonempty().optional(),
       }),
     }),
+    z.object({
+      type: z.literal('custom'),
+      custom: z.object({
+        command: z.string().nonempty(),
+        args: z.array(z.string().nonempty()),
+        environmentName: z.string().nonempty(),
+        buildOutputPath: z.string().nonempty(),
+      }),
+    }),
   ]),
 })
 
