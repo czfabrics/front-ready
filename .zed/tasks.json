@@ -1,35 +1,35 @@
 [
-    {
-        "label": "Format all",
-        "command": "npm",
-        "args": ["run", "format:all"],
-        "use_new_terminal": false,
-        "allow_concurrent_runs": false,
-        "reveal": "always",
-        "reveal_target": "center",
-        "hide": "on_success",
-        "shell": "system"
-    },
-    {
-        "label": "Build",
-        "command": "npm",
-        "args": ["run", "build"],
-        "use_new_terminal": false,
-        "allow_concurrent_runs": false,
-        "reveal": "always",
-        "reveal_target": "center",
-        "hide": "on_success",
-        "shell": "system"
-    },
-    {
-        "label": "Generate README",
-        "command": "npm",
-        "args": ["run", "generate:readme"],
-        "use_new_terminal": false,
-        "allow_concurrent_runs": false,
-        "reveal": "always",
-        "reveal_target": "center",
-        "hide": "on_success",
-        "shell": "system"
-    }
+  {
+    "label": "Format all",
+    "command": "npm",
+    "args": ["run", "format:all"],
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "reveal_target": "center",
+    "hide": "on_success",
+    "shell": "system"
+  },
+  {
+    "label": "Build",
+    "command": "npm",
+    "args": ["run", "build"],
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "reveal_target": "center",
+    "hide": "on_success",
+    "shell": "system"
+  },
+  {
+    "label": "Generate README",
+    "command": "npm",
+    "args": ["run", "generate:readme"],
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "reveal_target": "center",
+    "hide": "on_success",
+    "shell": "system"
+  }
 ]

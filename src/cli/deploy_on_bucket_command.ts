@@ -8,38 +8,38 @@ import { command } from 'cmd-ts'
 import { Effect, Inspectable, Layer } from 'effect'
 
 export const deployOnBucketCommand = command({
-    name: 'deploy',
-    description: 'TODO',
-    args: {},
-    handler: function () {
-        const CommandContextLayer = Layer.succeed(CliCommandContext, {
-            commandName: this.name,
-        })
+  name: 'deploy',
+  description: 'TODO',
+  args: {},
+  handler: function () {
+    const CommandContextLayer = Layer.succeed(CliCommandContext, {
+      commandName: this.name,
+    })
 
-        return Effect.gen(function* () {
-            const { config } = yield* startCli
+    return Effect.gen(function* () {
+      const { config } = yield* startCli
 
-            const ConfigContextLayer = Layer.succeed(InternalConfigContext, config)
-            const DeploymentContextLayer = makeFrontDeploymentContextLayer(config)
+      const ConfigContextLayer = Layer.succeed(InternalConfigContext, config)
+      const DeploymentContextLayer = makeFrontDeploymentContextLayer(config)
 
-            yield* Effect.gen(function* () {
-                const useCase = yield* DeployOnBucketUseCase
+      yield* Effect.gen(function* () {
+        const useCase = yield* DeployOnBucketUseCase
 
-                yield* useCase.run()
+        yield* useCase.run()
 
-                outro(`Deployment finished`)
-            }).pipe(
-                Effect.provide(DeployOnBucketUseCase.Default),
-                Effect.provide(ConfigContextLayer),
-                Effect.provide(DeploymentContextLayer),
-                Effect.catchAll((error) =>
-                    Effect.gen(function* () {
-                        log.error(error.message)
-                        log.message(Inspectable.toStringUnknown(error))
-                        outro(`Deployment aborted`)
-                    })
-                )
-            )
-        }).pipe(Effect.provide(CommandContextLayer))
-    },
+        outro(`Deployment finished`)
+      }).pipe(
+        Effect.provide(DeployOnBucketUseCase.Default),
+        Effect.provide(ConfigContextLayer),
+        Effect.provide(DeploymentContextLayer),
+        Effect.catchAll((error) =>
+          Effect.gen(function* () {
+            log.error(error.message)
+            log.message(Inspectable.toStringUnknown(error))
+            outro(`Deployment aborted`)
+          })
+        )
+      )
+    }).pipe(Effect.provide(CommandContextLayer))
+  },
 })

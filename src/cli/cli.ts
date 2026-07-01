@@ -4,6 +4,6 @@ import { subcommands } from 'cmd-ts'
 import packageInfo from 'package.json'
 
 export const cli = subcommands({
-    name: packageInfo.name,
-    cmds: { deploy: deployOnBucketCommand, create: createFrontBucketCommand },
+  name: packageInfo.name,
+  cmds: { deploy: deployOnBucketCommand, create: createFrontBucketCommand },
 })

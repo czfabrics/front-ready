@@ -1,96 +1,96 @@
 {
-    "name": "@czfabrics/front-ready",
-    "version": "0.1.0-beta.1",
-    "author": {
-        "name": "Dylan Valentin",
-        "email": "dylan.valentin@ik.me",
-        "url": "https://github.com/czyrok"
-    },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/czfabrics/front-ready.git"
-    },
-    "dependencies": {
-        "@aws-sdk/client-s3": "^3.1061.0",
-        "@clack/prompts": "^1.5.1",
-        "@effect/platform": "^0.96.1",
-        "@effect/platform-node": "^0.107.0",
-        "c12": "^4.0.0-beta.5",
-        "cmd-ts": "^0.15.0",
-        "effect": "^3.21.2",
-        "file-type": "^22.0.1",
-        "zod": "^4.4.3"
-    },
-    "devDependencies": {
-        "@appnest/readme": "^1.2.7",
-        "@types/pluralize": "^0.0.33",
-        "@typescript/analyze-trace": "^0.10.1",
-        "esbuild": "^0.25.9",
-        "prettier": "^3.6.2",
-        "rimraf": "^6.0.1",
-        "tsc-alias": "^1.8.16",
-        "tsx": "^4.21.0",
-        "type-fest": "^5.3.1",
-        "typescript": "^5.9.2",
-        "vite-tsconfig-paths": "^6.1.0",
-        "vitest": "^4.0.18",
-        "vscode-generate-index-standalone": "^1.7.1"
-    },
-    "main": "./.dist/index.cjs",
-    "module": "./.dist/index.mjs",
-    "types": "./.dist/index.d.ts",
-    "exports": {
-        "./package.json": "./package.json",
-        ".": {
-            "types": "./.dist/index.d.ts",
-            "import": "./.dist/index.mjs",
-            "require": "./.dist/index.cjs"
-        }
-    },
-    "bin": "./.dist/main.mjs",
-    "bugs": {
-        "url": "https://github.com/czfabrics/front-ready/issues"
-    },
-    "description": "A framework-aware deployment tool for static frontends. It reads your project's build configuration (e.g. angular.json), runs the build with the configuration you choose, and pushes the compiled output to an S3 bucket — with correct content types and cache headers — so a single command takes you from source to a live, hosted site.",
-    "files": [
-        "package.json",
-        "README.md",
-        "LICENSE",
-        ".dist/**/*"
-    ],
-    "homepage": "https://github.com/czfabrics/front-ready#readme",
-    "keywords": [
-        "cli",
-        "deploy",
-        "deployment",
-        "s3",
-        "aws",
-        "aws-s3",
-        "bucket",
-        "frontend",
-        "static-site",
-        "static-hosting",
-        "spa",
-        "build",
-        "angular",
-        "ci-cd",
-        "upload",
-        "typescript"
-    ],
-    "license": "MIT",
-    "scripts": {
-        "format:all": "prettier ./**/*.ts ./**/*.json --write",
-        "typecheck": "tsc --project ./tsconfig.typecheck.json",
-        "dev": "tsx main.ts",
-        "test": "vitest",
-        "test:coverage": "vitest --coverage.enabled",
-        "check:type-perf": "rimraf .tsc_traces && tsc --project ./tsconfig.typecheck.json --generateTrace .tsc_traces && analyze-trace .tsc_traces",
-        "prepare:index": "vscode-generate-index-standalone index.ts",
-        "prepare:dist": "tsx build.ts",
-        "prepare:declaration": "tsc --project ./tsconfig.declaration.json",
-        "prepare:imports": "tsc-alias --project tsconfig.declaration.json --outDir .dist",
-        "build": "rimraf .dist && bun run prepare:index && bun run prepare:dist && bun run prepare:declaration && bun run prepare:imports",
-        "generate:readme": "readme generate --config .blueprint.json",
-        "prepublishOnly": "bun run generate:readme && bun run build"
+  "name": "@czfabrics/front-ready",
+  "version": "0.1.0-beta.1",
+  "author": {
+    "name": "Dylan Valentin",
+    "email": "dylan.valentin@ik.me",
+    "url": "https://github.com/czyrok"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/czfabrics/front-ready.git"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1061.0",
+    "@clack/prompts": "^1.5.1",
+    "@effect/platform": "^0.96.1",
+    "@effect/platform-node": "^0.107.0",
+    "c12": "^4.0.0-beta.5",
+    "cmd-ts": "^0.15.0",
+    "effect": "^3.21.2",
+    "file-type": "^22.0.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@appnest/readme": "^1.2.7",
+    "@types/pluralize": "^0.0.33",
+    "@typescript/analyze-trace": "^0.10.1",
+    "esbuild": "^0.25.9",
+    "prettier": "^3.6.2",
+    "rimraf": "^6.0.1",
+    "tsc-alias": "^1.8.16",
+    "tsx": "^4.21.0",
+    "type-fest": "^5.3.1",
+    "typescript": "^5.9.2",
+    "vite-tsconfig-paths": "^6.1.0",
+    "vitest": "^4.0.18",
+    "vscode-generate-index-standalone": "^1.7.1"
+  },
+  "main": "./.dist/index.cjs",
+  "module": "./.dist/index.mjs",
+  "types": "./.dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./.dist/index.d.ts",
+      "import": "./.dist/index.mjs",
+      "require": "./.dist/index.cjs"
     }
+  },
+  "bin": "./.dist/main.mjs",
+  "bugs": {
+    "url": "https://github.com/czfabrics/front-ready/issues"
+  },
+  "description": "A framework-aware deployment tool for static frontends. It reads your project's build configuration (e.g. angular.json), runs the build with the configuration you choose, and pushes the compiled output to an S3 bucket — with correct content types and cache headers — so a single command takes you from source to a live, hosted site.",
+  "files": [
+    "package.json",
+    "README.md",
+    "LICENSE",
+    ".dist/**/*"
+  ],
+  "homepage": "https://github.com/czfabrics/front-ready#readme",
+  "keywords": [
+    "cli",
+    "deploy",
+    "deployment",
+    "s3",
+    "aws",
+    "aws-s3",
+    "bucket",
+    "frontend",
+    "static-site",
+    "static-hosting",
+    "spa",
+    "build",
+    "angular",
+    "ci-cd",
+    "upload",
+    "typescript"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "format:all": "prettier . --write",
+    "typecheck": "tsc --project ./tsconfig.typecheck.json",
+    "dev": "tsx main.ts",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage.enabled",
+    "check:type-perf": "rimraf .tsc_traces && tsc --project ./tsconfig.typecheck.json --generateTrace .tsc_traces && analyze-trace .tsc_traces",
+    "prepare:index": "vscode-generate-index-standalone index.ts",
+    "prepare:dist": "tsx build.ts",
+    "prepare:declaration": "tsc --project ./tsconfig.declaration.json",
+    "prepare:imports": "tsc-alias --project tsconfig.declaration.json --outDir .dist",
+    "build": "rimraf .dist && bun run prepare:index && bun run prepare:dist && bun run prepare:declaration && bun run prepare:imports",
+    "generate:readme": "readme generate --config .blueprint.json",
+    "prepublishOnly": "bun run generate:readme && bun run build"
+  }
 }

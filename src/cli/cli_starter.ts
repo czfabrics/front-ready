@@ -5,13 +5,13 @@ import { Effect } from 'effect'
 import packageInfo from 'package.json'
 
 export const startCli = Effect.gen(function* () {
-    const context = yield* CliCommandContext
+  const context = yield* CliCommandContext
 
-    intro(`${packageInfo.name}@${packageInfo.version} - ${context.commandName}`)
+  intro(`${packageInfo.name}@${packageInfo.version} - ${context.commandName}`)
 
-    const config = yield* loadConfig
+  const config = yield* loadConfig
 
-    log.success('Configuration loaded')
+  log.success('Configuration loaded')
 
-    return { config }
+  return { config }
 })

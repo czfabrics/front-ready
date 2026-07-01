@@ -1,15 +1,15 @@
 {
-    "languages": {
-        "TypeScript": {
-            "prettier": {
-                "allowed": true
-            }
-        },
-        "JSON": {
-            "prettier": {
-                "allowed": true
-            }
-        }
+  "languages": {
+    "TypeScript": {
+      "prettier": {
+        "allowed": true
+      }
     },
-    "file_scan_exclusions": ["bun.lock"]
+    "JSON": {
+      "prettier": {
+        "allowed": true
+      }
+    }
+  },
+  "file_scan_exclusions": ["bun.lock"]
 }

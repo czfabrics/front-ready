@@ -8,37 +8,37 @@ import { CommandExecutor } from '@effect/platform'
 import { Duration, Effect, Runtime } from 'effect'
 
 export const runFrontBuildCommand = Effect.gen(function* () {
-    const deploymentContext = yield* FrontDeploymentContext
+  const deploymentContext = yield* FrontDeploymentContext
 
-    const runtime = yield* Effect.runtime<CommandExecutor.CommandExecutor>()
-    const runPromise = Runtime.runPromise(runtime)
+  const runtime = yield* Effect.runtime<CommandExecutor.CommandExecutor>()
+  const runPromise = Runtime.runPromise(runtime)
 
-    yield* toEffect(
-        tasks([
-            {
-                title: 'Building front',
-                task: (logMessage) => {
-                    return runPromise(
-                        Effect.gen(function* () {
-                            const [duration, exitCode] = yield* Effect.timed(
-                                runCommand(deploymentContext.command, logMessage)
-                            )
+  yield* toEffect(
+    tasks([
+      {
+        title: 'Building front',
+        task: (logMessage) => {
+          return runPromise(
+            Effect.gen(function* () {
+              const [duration, exitCode] = yield* Effect.timed(
+                runCommand(deploymentContext.command, logMessage)
+              )
 
-                            if (exitCode !== 0) {
-                                return yield* Effect.fail(
-                                    new CommandError({
-                                        message: `Build failed`,
-                                        code: exitCode,
-                                    })
-                                )
-                            }
+              if (exitCode !== 0) {
+                return yield* Effect.fail(
+                  new CommandError({
+                    message: `Build failed`,
+                    code: exitCode,
+                  })
+                )
+              }
 
-                            return `Build finished in ${Duration.toMillis(duration)}ms`
-                        })
-                    )
-                },
-            },
-        ]),
-        TUiWrapperError
-    )
+              return `Build finished in ${Duration.toMillis(duration)}ms`
+            })
+          )
+        },
+      },
+    ]),
+    TUiWrapperError
+  )
 })

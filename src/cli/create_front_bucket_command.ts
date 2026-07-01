@@ -8,40 +8,40 @@ import { command } from 'cmd-ts'
 import { Effect, Inspectable, Layer } from 'effect'
 
 export const createFrontBucketCommand = command({
-    name: 'create',
-    description: 'TODO',
-    args: {},
-    handler: function () {
-        const CommandContextLayer = Layer.succeed(CliCommandContext, {
-            commandName: this.name,
-        })
+  name: 'create',
+  description: 'TODO',
+  args: {},
+  handler: function () {
+    const CommandContextLayer = Layer.succeed(CliCommandContext, {
+      commandName: this.name,
+    })
 
-        return Effect.gen(function* () {
-            const { config } = yield* startCli
+    return Effect.gen(function* () {
+      const { config } = yield* startCli
 
-            const ConfigContextLayer = Layer.succeed(InternalConfigContext, config)
-            const DeploymentContextLayer = makeFrontDeploymentContextLayer(config)
+      const ConfigContextLayer = Layer.succeed(InternalConfigContext, config)
+      const DeploymentContextLayer = makeFrontDeploymentContextLayer(config)
 
-            const tt = Effect.gen(function* () {
-                const useCase = yield* CreateFrontBucketUseCase
+      const tt = Effect.gen(function* () {
+        const useCase = yield* CreateFrontBucketUseCase
 
-                yield* useCase.run()
+        yield* useCase.run()
 
-                outro(`Creation finished`)
-            }).pipe(
-                Effect.provide(CreateFrontBucketUseCase.Default),
-                Effect.provide(ConfigContextLayer),
-                Effect.provide(DeploymentContextLayer),
-                Effect.catchAll((error) =>
-                    Effect.gen(function* () {
-                        log.error(error.message)
-                        log.message(Inspectable.toStringUnknown(error))
-                        outro(`Creation aborted`)
-                    })
-                )
-            )
+        outro(`Creation finished`)
+      }).pipe(
+        Effect.provide(CreateFrontBucketUseCase.Default),
+        Effect.provide(ConfigContextLayer),
+        Effect.provide(DeploymentContextLayer),
+        Effect.catchAll((error) =>
+          Effect.gen(function* () {
+            log.error(error.message)
+            log.message(Inspectable.toStringUnknown(error))
+            outro(`Creation aborted`)
+          })
+        )
+      )
 
-            yield* tt
-        }).pipe(Effect.provide(CommandContextLayer))
-    },
+      yield* tt
+    }).pipe(Effect.provide(CommandContextLayer))
+  },
 })

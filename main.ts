@@ -6,7 +6,7 @@ import { run } from 'cmd-ts'
 import { Effect } from 'effect'
 
 const runCli = toEffect(run(cli, process.argv.slice(2)), InternalError).pipe(
-    Effect.flatMap(({ value }) => value)
+  Effect.flatMap(({ value }) => value)
 )
 
 NodeRuntime.runMain(runCli.pipe(Effect.provide(NodeContext.layer)))

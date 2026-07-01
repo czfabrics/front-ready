@@ -2,20 +2,20 @@ import { Data } from 'effect'
 import z, { ZodError as TrueZodError } from 'zod'
 
 export class AngularJsonFormatError extends Data.TaggedError('AngularJsonFormatError')<{
-    readonly cause: TrueZodError
+  readonly cause: TrueZodError
 }> {
-    public override get message(): string {
-        return z.prettifyError(this.cause)
-    }
+  public override get message(): string {
+    return z.prettifyError(this.cause)
+  }
 }
 
 export class AngularJsonMissingDataError extends Data.TaggedError(
-    'AngularJsonMissingDataError'
+  'AngularJsonMissingDataError'
 )<{
-    readonly subject: string
-    readonly projectName: string
+  readonly subject: string
+  readonly projectName: string
 }> {
-    public override get message(): string {
-        return `Unable to resolve '${this.subject}' for '${this.projectName}'`
-    }
+  public override get message(): string {
+    return `Unable to resolve '${this.subject}' for '${this.projectName}'`
+  }
 }
