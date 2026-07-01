@@ -1,66 +1,61 @@
 import { FrontDeploymentContext } from '#contexts/front_deployment'
+import { InternalConfigContext } from '#contexts/internal_config'
 import { runFrontBuildCommand } from '#core/front_build_command_runner'
 import { TUiWrapperError } from '#errors/interop/tui_wrapper'
 import { FrontFileObjectService } from '#file_object/front_service'
 import { toEffect } from '#helpers/promise'
+import { genTaskUi } from '#ui/tasks'
 import { confirm, log, outro, tasks } from '@clack/prompts'
 import { Duration, Effect } from 'effect'
 
 export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>()(
-    'DeployOnBucketUseCase',
-    {
-        effect: Effect.gen(function* () {
-            const frontService = yield* FrontFileObjectService
-            const deploymentContext = yield* FrontDeploymentContext
+  'DeployOnBucketUseCase',
+  {
+    effect: Effect.gen(function* () {
+      const frontService = yield* FrontFileObjectService
+      const deploymentContext = yield* FrontDeploymentContext
 
-            return {
-                run: () =>
-                    Effect.gen(function* () {
-                        const shouldContinue = yield* toEffect(
-                            confirm({
-                                message: `Do you want to build and upload '${deploymentContext.buildOutputPath}' to bucket '${deploymentContext.bucketName}'?`,
-                            }),
-                            TUiWrapperError
-                        )
+      return {
+        run: () =>
+          Effect.gen(function* () {
+            const shouldContinue = yield* toEffect(
+              confirm({
+                message: `Do you want to build and upload '${deploymentContext.buildOutputPath}' to bucket '${deploymentContext.bucketName}'?`,
+              }),
+              TUiWrapperError
+            )
 
-                        if (!shouldContinue) {
-                            log.message(`User answered no`)
-                            outro(`Deployment aborted`)
-                            return
-                        }
-
-                        yield* runFrontBuildCommand
-                        const frontBuildFiles = yield* frontService.listFrontBuildFiles()
-
-                        // TODO: issue, propagate error through tui functions
-                        yield* toEffect(
-                            tasks([
-                                {
-                                    title: 'Uploading front files',
-                                    task: (logMessage) => {
-                                        return Effect.runPromise(
-                                            Effect.gen(function* () {
-                                                const [duration] = yield* Effect.timed(
-                                                    frontService.uploadFrontFilesToBucket(
-                                                        frontBuildFiles,
-                                                        (object) =>
-                                                            logMessage(
-                                                                `File '${object.key}' uploaded`
-                                                            )
-                                                    )
-                                                )
-
-                                                return `Uploaded ${frontBuildFiles.length} files in ${Duration.toMillis(duration)}ms`
-                                            })
-                                        )
-                                    },
-                                },
-                            ]),
-                            TUiWrapperError
-                        )
-                    }),
+            if (!shouldContinue) {
+              log.message(`User answered no`)
+              outro(`Deployment aborted`)
+              return
             }
-        }),
-        dependencies: [FrontFileObjectService.Default],
-    }
+
+            yield* runFrontBuildCommand
+            const frontBuildFileTree = yield* frontService.listFrontBuildFileTree()
+
+            const configContext = yield* InternalConfigContext
+            const frontFileUploadTasks = Array.from(frontBuildFileTree).map(
+              (fileTree) => {
+                return genTaskUi({
+                  title: 'Uploading front files',
+                  items: fileTree,
+                  functions: {
+                    processItem: frontService.uploadFrontFileToBucket,
+                    resolveItemMessage: (item) => `File '${item.relativePath}' uploaded`,
+                    resolveFinalMessage: (fileTree, duration) =>
+                      `Uploaded ${fileTree.items.length} files in ${Duration.toMillis(duration)}ms`,
+                  },
+                  subTaskConcurrency: configContext.bucket.upload.concurrency,
+                })
+              }
+            )
+
+            // TODO: issue, propagate error through tui functions
+            yield* toEffect(tasks(frontFileUploadTasks), TUiWrapperError)
+          }),
+      }
+    }),
+    dependencies: [FrontFileObjectService.Default],
+  }
 ) {}

@@ -1,35 +1,72 @@
+import { FileError } from '#errors/interop/file'
+import { FileItem, FileTree } from '#file/types'
 import { FileObject } from '#file_object/repository'
-import { Effect } from 'effect'
-import { FileItem } from 'src/file/repository'
+import { Path } from '@effect/platform'
+import { Array, Effect, Option } from 'effect'
 
 export const fileIntoObject = function (file: FileItem) {
-    return Effect.gen(function* () {
-        const content = yield* file.content
-        const contentType = yield* file.contentType
+  return Effect.gen(function* () {
+    const content = yield* file.content
+    const contentType = yield* file.contentType
 
-        return {
-            key: file.relativePath,
-            content: content,
-            contentType: contentType.mime,
-            cacheControlValue: undefined,
-        } satisfies FileObject
-    })
+    return {
+      key: file.relativePath,
+      content: content,
+      contentType: contentType.mime,
+      cacheControlValue: undefined,
+    } satisfies FileObject
+  })
 }
 
 export const detectAndFillCacheControl = function (
-    object: FileObject,
-    cacheControlMapping: Record<string, string>
+  object: FileObject,
+  cacheControlMapping: Record<string, string>
 ): FileObject {
-    for (const [keyRawRegExp, cacheControlValue] of Object.entries(cacheControlMapping)) {
-        const isCorrectCacheControl = new RegExp(keyRawRegExp).test(object.key)
+  for (const [keyRawRegExp, cacheControlValue] of Object.entries(cacheControlMapping)) {
+    const isCorrectCacheControl = new RegExp(keyRawRegExp).test(object.key)
 
-        if (isCorrectCacheControl) {
-            return {
-                ...object,
-                cacheControlValue,
-            }
-        }
+    if (isCorrectCacheControl) {
+      return {
+        ...object,
+        cacheControlValue,
+      }
+    }
+  }
+
+  return object
+}
+
+export const extractFirstFolderFromPath = function (relativePath: string) {
+  return Effect.gen(function* () {
+    const path = yield* Path.Path
+
+    const segments = path
+      .normalize(relativePath)
+      .replace(/\\/g, '/')
+      .split('/')
+      .filter((segment) => segment.length > 0 && segment !== '.')
+
+    if (segments.length <= 1) {
+      return Option.none()
     }
 
-    return object
+    return Array.head(segments)
+  })
+}
+
+export const extractRootFileTree = function (file: FileItem, cwd: string) {
+  return Effect.gen(function* () {
+    const firstFolder = yield* extractFirstFolderFromPath(file.relativePath)
+
+    if (Option.isNone(firstFolder)) {
+      return yield* Effect.fail(
+        new FileError({
+          message: 'File should be in a folder',
+          cause: file,
+        })
+      )
+    }
+
+    return yield* FileTree.new({ relativePath: firstFolder.value, cwd, items: [] })
+  })
 }

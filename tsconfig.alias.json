@@ -1,14 +1,16 @@
 {
-    "compilerOptions": {
-        "paths": {
-            "#core/*": ["src/core/*"],
-            "#errors/*": ["src/errors/*"],
-            "#helpers/*": ["src/helpers/*"],
-            "#factories/*": ["src/factories/*"],
-            "#contexts/*": ["src/contexts/*"],
-            "#use_cases/*": ["src/use_cases/*"],
-            "#cli/*": ["src/cli/*"],
-            "#file_object/*": ["src/file_object/*"],
-        },
+  "compilerOptions": {
+    "paths": {
+      "#core/*": ["src/core/*"],
+      "#errors/*": ["src/errors/*"],
+      "#helpers/*": ["src/helpers/*"],
+      "#factories/*": ["src/factories/*"],
+      "#contexts/*": ["src/contexts/*"],
+      "#use_cases/*": ["src/use_cases/*"],
+      "#cli/*": ["src/cli/*"],
+      "#ui/*": ["src/ui/*"],
+      "#file/*": ["src/file/*"],
+      "#file_object/*": ["src/file_object/*"],
     },
+  },
 }
