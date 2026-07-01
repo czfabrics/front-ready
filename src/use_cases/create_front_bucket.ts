@@ -38,12 +38,20 @@ export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUs
               }
             }
 
-            const s = spinner()
-            s.start('Creating front bucket')
+            const spin = spinner()
+            spin.start('Creating front bucket')
 
-            yield* frontService.createFrontBucket()
+            yield* frontService.createFrontBucket().pipe(
+              Effect.catchAll((error) =>
+                Effect.gen(function* () {
+                  spin.error(error.message)
 
-            s.stop('Front bucket created')
+                  return yield* Effect.fail(error)
+                })
+              )
+            )
+
+            spin.stop('Front bucket created')
 
             return {
               isAborted: false,
