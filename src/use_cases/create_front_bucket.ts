@@ -2,7 +2,7 @@ import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { TUiWrapperError } from '#errors/interop/tui_wrapper'
 import { FrontFileObjectService } from '#file_object/front_service'
 import { toEffect } from '#helpers/promise'
-import { confirm, log, outro, spinner } from '@clack/prompts'
+import { confirm, log, spinner } from '@clack/prompts'
 import { Effect } from 'effect'
 
 export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUseCase>()(
@@ -19,7 +19,9 @@ export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUs
 
             if (doesBucketExist) {
               log.info(`The bucket '${deploymentContext.bucketName}' already exist`)
-              outro(`Creation aborted`)
+              return {
+                isAborted: true,
+              }
             }
 
             const shouldContinue = yield* toEffect(
@@ -30,9 +32,9 @@ export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUs
             )
 
             if (!shouldContinue) {
-              log.message(`User answered no`)
-              outro(`Creation aborted`)
-              return
+              return {
+                isAborted: true,
+              }
             }
 
             const s = spinner()
@@ -41,6 +43,10 @@ export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUs
             yield* frontService.createFrontBucket()
 
             s.stop('Front bucket created')
+
+            return {
+              isAborted: false,
+            }
           }),
       }
     }),

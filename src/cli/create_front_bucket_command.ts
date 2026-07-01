@@ -25,9 +25,13 @@ export const createFrontBucketCommand = command({
       const tt = Effect.gen(function* () {
         const useCase = yield* CreateFrontBucketUseCase
 
-        yield* useCase.run()
+        const { isAborted } = yield* useCase.run()
 
-        outro(`Creation finished`)
+        if (isAborted) {
+          outro(`Creation aborted`)
+        } else {
+          outro(`Creation finished`)
+        }
       }).pipe(
         Effect.provide(CreateFrontBucketUseCase.Default),
         Effect.provide(ConfigContextLayer),

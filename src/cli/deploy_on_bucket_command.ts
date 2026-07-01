@@ -25,9 +25,13 @@ export const deployOnBucketCommand = command({
       yield* Effect.gen(function* () {
         const useCase = yield* DeployOnBucketUseCase
 
-        yield* useCase.run()
+        const { isAborted } = yield* useCase.run()
 
-        outro(`Deployment finished`)
+        if (isAborted) {
+          outro(`Deployment aborted`)
+        } else {
+          outro(`Deployment finished`)
+        }
       }).pipe(
         Effect.provide(DeployOnBucketUseCase.Default),
         Effect.provide(ConfigContextLayer),

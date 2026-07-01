@@ -5,7 +5,7 @@ import { TUiWrapperError } from '#errors/interop/tui_wrapper'
 import { FrontFileObjectService } from '#file_object/front_service'
 import { toEffect } from '#helpers/promise'
 import { genTaskUi } from '#ui/tasks'
-import { confirm, log, outro, tasks } from '@clack/prompts'
+import { confirm, tasks } from '@clack/prompts'
 import { Duration, Effect } from 'effect'
 
 export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>()(
@@ -26,10 +26,12 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
             )
 
             if (!shouldContinue) {
-              log.message(`User answered no`)
-              outro(`Deployment aborted`)
-              return
+              return {
+                isAborted: true,
+              }
             }
+
+            // TODO: check if bucket exists
 
             yield* runFrontBuildCommand
             const frontBuildFileTree = yield* frontService.listFrontBuildFileTree()
@@ -53,6 +55,10 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
 
             // TODO: issue, propagate error through tui functions
             yield* toEffect(tasks(frontFileUploadTasks), TUiWrapperError)
+
+            return {
+              isAborted: false,
+            }
           }),
       }
     }),
