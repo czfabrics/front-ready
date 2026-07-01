@@ -1,4 +1,3 @@
-import { FileError } from '#errors/interop/file'
 import { FileItem, FileTree } from '#file/types'
 import { FileObject } from '#file_object/repository'
 import { Path } from '@effect/platform'
@@ -59,12 +58,7 @@ export const extractRootFileTree = function (file: FileItem, cwd: string) {
     const firstFolder = yield* extractFirstFolderFromPath(file.relativePath)
 
     if (Option.isNone(firstFolder)) {
-      return yield* Effect.fail(
-        new FileError({
-          message: 'File should be in a folder',
-          cause: file,
-        })
-      )
+      return yield* FileTree.new({ relativePath: './', cwd, items: [] })
     }
 
     return yield* FileTree.new({ relativePath: firstFolder.value, cwd, items: [] })
