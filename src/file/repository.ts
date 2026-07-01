@@ -1,12 +1,8 @@
 import { FileRepositoryContext } from '#contexts/file_repository'
-import { FileTypeWrapperError } from '#errors/interop/file_type_wrapper'
 import { FileItem } from '#file/types'
-import { toEffect } from '#helpers/promise'
 import { Path } from '@effect/platform'
 import { FileSystem } from '@effect/platform/FileSystem'
 import { Effect } from 'effect'
-import { UnknownException } from 'effect/Cause'
-import { fileTypeFromBuffer } from 'file-type'
 
 export class FileRepository extends Effect.Service<FileRepository>()('FileRepository', {
   effect: Effect.gen(function* () {
@@ -17,45 +13,35 @@ export class FileRepository extends Effect.Service<FileRepository>()('FileReposi
     return {
       listFiles: (relativePathsToTheEnd: string[]) =>
         Effect.gen(function* () {
-          const filePaths = yield* fs.readDirectory(context.cwd, {
+          const paths = yield* fs.readDirectory(context.cwd, {
             recursive: true,
           })
 
+          const filePaths = yield* Effect.filter(
+            paths,
+            (relativePath) =>
+              fs
+                .stat(path.resolve(context.cwd, relativePath))
+                .pipe(Effect.map((info) => info.type === 'File')),
+            { concurrency: 'unbounded' }
+          )
+
           for (const pathToTheEnd of relativePathsToTheEnd) {
             const index = filePaths.findIndex((path) => path === pathToTheEnd)
+
+            if (index < 0) {
+              continue
+            }
 
             filePaths.splice(index, 1)
             filePaths.push(pathToTheEnd)
           }
 
-          return filePaths.map((filePath) => {
-            const absolutePath = path.resolve(context.cwd, filePath)
-            const content = fs.readFile(absolutePath)
-            const contentType = content.pipe(
-              Effect.flatMap((value) =>
-                toEffect(fileTypeFromBuffer(value), FileTypeWrapperError)
-              ),
-              Effect.flatMap((value) => {
-                return value
-                  ? Effect.succeed(value)
-                  : Effect.fail(
-                      new FileTypeWrapperError({
-                        message: 'Unable to determine the content type of the file',
-                        cause: new UnknownException(
-                          'Unable to determine the content type of the file'
-                        ),
-                      })
-                    )
-              })
-            )
-
-            return {
-              name: path.basename(filePath),
+          return yield* Effect.forEach(filePaths, (filePath) => {
+            return FileItem.new({
               relativePath: filePath,
-              absolutePath: absolutePath,
-              content: content,
-              contentType: contentType,
-            } satisfies FileItem
+              cwd: context.cwd,
+            })
           })
         }),
     }

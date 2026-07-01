@@ -1,20 +1,52 @@
 import { IteratorImpl } from '#core/common'
 import { FileTypeWrapperError } from '#errors/interop/file_type_wrapper'
+import { toEffectSync } from '#helpers/promise'
 import { Path } from '@effect/platform'
 import { PlatformError } from '@effect/platform/Error'
+import { FileSystem } from '@effect/platform/FileSystem'
 import { Effect, Equal, Hash } from 'effect'
-import { FileTypeResult } from 'file-type'
+import { lookup } from 'mrmime'
 
 export type FileItem = {
   readonly name: string
+  readonly extension: string
   readonly relativePath: string
   readonly absolutePath: string
+  readonly cwd: string
   readonly content: Effect.Effect<Uint8Array<ArrayBufferLike>, PlatformError, never>
-  readonly contentType: Effect.Effect<
-    FileTypeResult,
-    PlatformError | FileTypeWrapperError,
-    never
-  >
+  readonly contentType: Effect.Effect<string, PlatformError | FileTypeWrapperError, never>
+}
+
+export const FileItem = {
+  new: function (data: { relativePath: string; cwd: string }) {
+    return Effect.gen(function* () {
+      const path = yield* Path.Path
+      const fs = yield* FileSystem
+
+      const name = path.basename(data.relativePath)
+      const extension = path.extname(data.relativePath)
+      const absolutePath = path.resolve(data.cwd, data.relativePath)
+      const content = fs.readFile(absolutePath)
+
+      return {
+        name,
+        extension,
+        relativePath: data.relativePath,
+        absolutePath,
+        cwd: data.cwd,
+        content: content,
+        get contentType() {
+          return toEffectSync(
+            () => lookup(extension) ?? 'application/octet-stream',
+            FileTypeWrapperError,
+            {
+              file: this,
+            }
+          )
+        },
+      } satisfies FileItem
+    })
+  },
 }
 
 const FileTreeTypeId: unique symbol = Symbol.for('FileTree')

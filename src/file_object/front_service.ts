@@ -49,13 +49,13 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
         listFrontBuildFiles: () => {
           return fileRepository.listFiles(configContext.bucket.upload.filesToTheEnd)
         },
-        listFrontBuildFileTree: () => {
+        listFrontBuildFileTrees: () => {
           return Effect.gen(function* () {
             const files = yield* fileRepository.listFiles(
               configContext.bucket.upload.filesToTheEnd
             )
 
-            const map = HashMap.make<[string, FileTree][]>()
+            let map = HashMap.empty<string, FileTree>()
 
             for (const file of files) {
               const fileTree = yield* extractRootFileTree(
@@ -66,19 +66,15 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
               const existingFileTree = HashMap.get(map, fileTree.absolutePath)
 
               if (Option.isSome(existingFileTree)) {
-                HashMap.set(
+                const updatedFileTree = yield* existingFileTree.value.append([file])
+
+                map = HashMap.set(
+                  map,
                   existingFileTree.value.absolutePath,
-                  existingFileTree.value.append([file])
+                  updatedFileTree
                 )
               } else {
-                HashMap.set(
-                  file.absolutePath,
-                  FileTree.new({
-                    relativePath: fileTree.relativePath,
-                    cwd: frontContext.buildOutputPath,
-                    items: [file],
-                  })
-                )
+                map = HashMap.set(map, fileTree.absolutePath, fileTree)
               }
             }
 

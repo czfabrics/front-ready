@@ -10,8 +10,8 @@ export const fileIntoObject = function (file: FileItem) {
 
     return {
       key: file.relativePath,
-      content: content,
-      contentType: contentType.mime,
+      content,
+      contentType,
       cacheControlValue: undefined,
     } satisfies FileObject
   })
@@ -58,9 +58,9 @@ export const extractRootFileTree = function (file: FileItem, cwd: string) {
     const firstFolder = yield* extractFirstFolderFromPath(file.relativePath)
 
     if (Option.isNone(firstFolder)) {
-      return yield* FileTree.new({ relativePath: './', cwd, items: [] })
+      return yield* FileTree.new({ relativePath: './', cwd, items: [file] })
     }
 
-    return yield* FileTree.new({ relativePath: firstFolder.value, cwd, items: [] })
+    return yield* FileTree.new({ relativePath: firstFolder.value, cwd, items: [file] })
   })
 }
