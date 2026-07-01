@@ -2,7 +2,7 @@ import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { InternalConfigContext } from '#contexts/internal_config'
 import { TUiWrapperError } from '#errors/interop/tui_wrapper'
 import { FrontFileObjectService } from '#front/service'
-import { toEffect } from '#helpers/promise'
+import { hasMinOneFile } from '#helpers/file'
 import { genCommandUi } from '#ui/command'
 import { genTaskLogsUi } from '#ui/tasks'
 import { confirm, log } from '@clack/prompts'
@@ -57,7 +57,14 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
             const configContext = yield* InternalConfigContext
             const frontBuildFileTrees = yield* frontService.listFrontBuildFileTrees()
 
-            // TODO: error when no files
+            const hasOneFile = hasMinOneFile(frontBuildFileTrees)
+            if (!hasOneFile) {
+              log.error('Front files should contain minimum one file')
+
+              return {
+                isAborted: true,
+              }
+            }
 
             yield* genTaskLogsUi({
               title: 'Uploading files',

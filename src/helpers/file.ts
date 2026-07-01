@@ -64,3 +64,13 @@ export const extractRootFileTree = function (file: FileItem, cwd: string) {
     return yield* FileTree.new({ relativePath: firstFolder.value, cwd, items: [file] })
   })
 }
+
+export const hasMinOneFile = function (trees: IterableIterator<FileTree>) {
+  for (const tree of trees) {
+    if (tree.items.length > 0) {
+      return true
+    }
+  }
+
+  return false
+}
