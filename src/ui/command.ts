@@ -16,7 +16,12 @@ export const genCommandUi = function ({
   }
 }) {
   return Effect.gen(function* () {
-    const spin = spinner()
+    const spin = spinner({
+      indicator: 'timer',
+      frames: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
+      delay: 80,
+      styleFrame: (frame) => `\x1b[35m${frame}\x1b[0m`,
+    })
     spin.start(message.resolveStart())
 
     const [duration, exitCode] = yield* Effect.timed(runCommand(command, spin.message))
