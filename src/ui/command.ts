@@ -10,27 +10,27 @@ export const genCommandUi = function ({
 }: {
   command: Command.Command
   message: {
-    resolveStartMessage: () => string
-    resolveErrorMessage: (exitCode: number) => string
-    resolveEndMessage: (duration: Duration.Duration) => string
+    resolveStart: () => string
+    resolveError: (exitCode: number) => string
+    resolveEnd: (duration: Duration.Duration) => string
   }
 }) {
   return Effect.gen(function* () {
     const spin = spinner()
-    spin.start(message.resolveStartMessage())
+    spin.start(message.resolveStart())
 
     const [duration, exitCode] = yield* Effect.timed(runCommand(command, spin.message))
 
     if (exitCode !== 0) {
-      spin.error(message.resolveErrorMessage(exitCode))
+      spin.error(message.resolveError(exitCode))
       return yield* Effect.fail(
         new CommandError({
-          message: message.resolveErrorMessage(exitCode),
+          message: message.resolveError(exitCode),
           code: exitCode,
         })
       )
     }
 
-    spin.stop(message.resolveEndMessage(duration))
+    spin.stop(message.resolveEnd(duration))
   })
 }

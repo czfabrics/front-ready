@@ -3,7 +3,7 @@ import { CliCommandContext } from '#contexts/cli_command'
 import { InternalConfigContext } from '#contexts/internal_config'
 import { makeFrontDeploymentContextLayer } from '#factories/front_deployment_context'
 import { DeployOnBucketUseCase } from '#use_cases/deploy_on_bucket'
-import { log, outro } from '@clack/prompts'
+import { cancel, log, outro } from '@clack/prompts'
 import { command } from 'cmd-ts'
 import { Effect, Inspectable, Layer } from 'effect'
 
@@ -28,7 +28,7 @@ export const deployOnBucketCommand = command({
         const { isAborted } = yield* useCase.run()
 
         if (isAborted) {
-          outro(`Deployment aborted`)
+          cancel(`Deployment aborted`)
         } else {
           outro(`Deployment finished`)
         }

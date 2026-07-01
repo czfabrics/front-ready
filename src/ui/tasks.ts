@@ -25,10 +25,10 @@ export const genTaskLogsUi = <
     never
   >
   message: {
-    resolveItemMessage: (item: TItem) => string
+    resolveItem: (item: TItem) => string
     resolveGroupTitle: (group: TItemGroup) => string
-    resolveGroupSuccessMessage: (group: TItemGroup, duration: Duration.Duration) => string
-    resolveSuccessMessage: () => string
+    resolveGroupSuccess: (group: TItemGroup, duration: Duration.Duration) => string
+    resolveSuccess: () => string
   }
   subTaskConcurrency: number
 }) => {
@@ -47,7 +47,7 @@ export const genTaskLogsUi = <
             const itemProcesses = Array.from(group).map((item) =>
               Effect.gen(function* () {
                 yield* processItem(item)
-                groupLog.message(message.resolveItemMessage(item))
+                groupLog.message(message.resolveItem(item))
               })
             )
 
@@ -57,7 +57,7 @@ export const genTaskLogsUi = <
           })
         )
 
-        groupLog.success(message.resolveGroupSuccessMessage(group, duration))
+        groupLog.success(message.resolveGroupSuccess(group, duration))
       })
     })
 
@@ -65,6 +65,6 @@ export const genTaskLogsUi = <
       concurrency: 'unbounded',
     })
 
-    log.success(message.resolveSuccessMessage())
+    log.success(message.resolveSuccess())
   })
 }

@@ -3,7 +3,7 @@ import { CliCommandContext } from '#contexts/cli_command'
 import { InternalConfigContext } from '#contexts/internal_config'
 import { makeFrontDeploymentContextLayer } from '#factories/front_deployment_context'
 import { CreateFrontBucketUseCase } from '#use_cases/create_front_bucket'
-import { log, outro } from '@clack/prompts'
+import { cancel, log, outro } from '@clack/prompts'
 import { command } from 'cmd-ts'
 import { Effect, Inspectable, Layer } from 'effect'
 
@@ -28,7 +28,7 @@ export const createFrontBucketCommand = command({
         const { isAborted } = yield* useCase.run()
 
         if (isAborted) {
-          outro(`Creation aborted`)
+          cancel(`Creation aborted`)
         } else {
           outro(`Creation finished`)
         }

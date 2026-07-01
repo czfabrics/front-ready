@@ -1,8 +1,8 @@
 import { FrontDeploymentContext } from '#contexts/front_deployment'
-import { TUiWrapperError } from '#errors/interop/tui_wrapper'
 import { FrontFileObjectService } from '#front/service'
-import { toEffect } from '#helpers/promise'
-import { confirm, log, spinner } from '@clack/prompts'
+import { genConfirmUi } from '#ui/confirm'
+import { genLoaderUi } from '#ui/loader'
+import { log } from '@clack/prompts'
 import { Effect } from 'effect'
 
 export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUseCase>()(
@@ -16,21 +16,18 @@ export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUs
         run: () =>
           Effect.gen(function* () {
             const doesBucketExist = yield* frontService.doesFrontBucketExist()
-
             if (doesBucketExist) {
               log.info(`The bucket '${deploymentContext.bucketName}' already exist`)
+
               return {
                 isAborted: true,
               }
             }
 
-            const shouldContinue = yield* toEffect(
-              confirm({
-                message: `Do you want to create the bucket '${deploymentContext.bucketName}'?`,
-              }),
-              TUiWrapperError,
-              { uiFunction: 'confirm' }
-            )
+            const shouldContinue = yield* genConfirmUi({
+              question: `Do you want to create the bucket '${deploymentContext.bucketName}'?`,
+              initialValue: true,
+            })
 
             if (!shouldContinue) {
               return {
@@ -38,20 +35,14 @@ export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUs
               }
             }
 
-            const spin = spinner()
-            spin.start('Creating front bucket')
-
-            yield* frontService.createFrontBucket().pipe(
-              Effect.catchAll((error) =>
-                Effect.gen(function* () {
-                  spin.error(error.message)
-
-                  return yield* Effect.fail(error)
-                })
-              )
-            )
-
-            spin.stop('Front bucket created')
+            yield* genLoaderUi({
+              process: frontService.createFrontBucket,
+              message: {
+                resolveStart: () => 'Creating front bucket',
+                resolveError: (error) => error.message,
+                resolveEnd: () => 'Front bucket created',
+              },
+            })
 
             return {
               isAborted: false,

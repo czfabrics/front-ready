@@ -1,11 +1,11 @@
 import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { InternalConfigContext } from '#contexts/internal_config'
-import { TUiWrapperError } from '#errors/interop/tui_wrapper'
 import { FrontFileObjectService } from '#front/service'
 import { hasMinOneFile } from '#helpers/file'
 import { genCommandUi } from '#ui/command'
+import { genConfirmUi } from '#ui/confirm'
 import { genTaskLogsUi } from '#ui/tasks'
-import { confirm, log } from '@clack/prompts'
+import { log } from '@clack/prompts'
 import { Duration, Effect } from 'effect'
 
 export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>()(
@@ -18,15 +18,10 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
       return {
         run: () =>
           Effect.gen(function* () {
-            const shouldContinue = yield* toEffect(
-              confirm({
-                message: `Do you want to build and upload '${deploymentContext.buildOutputPath}' to bucket '${deploymentContext.bucketName}'?`,
-              }),
-              TUiWrapperError,
-              {
-                uiFunction: 'confirm',
-              }
-            )
+            const shouldContinue = yield* genConfirmUi({
+              question: `Do you want to build and upload '${deploymentContext.buildOutputPath}' to bucket '${deploymentContext.bucketName}'?`,
+              initialValue: false,
+            })
 
             if (!shouldContinue) {
               return {
@@ -35,7 +30,6 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
             }
 
             const doesBucketExist = yield* frontService.doesFrontBucketExist()
-
             if (!doesBucketExist) {
               log.error(`Bucket '${deploymentContext.bucketName}' should exist`)
 
@@ -47,9 +41,9 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
             yield* genCommandUi({
               command: deploymentContext.command,
               message: {
-                resolveStartMessage: () => 'Building front',
-                resolveErrorMessage: () => 'Build failed',
-                resolveEndMessage: (duration) =>
+                resolveStart: () => 'Building front',
+                resolveError: () => 'Build failed',
+                resolveEnd: (duration) =>
                   `Build finished in ${Duration.toMillis(duration)}ms`,
               },
             })
@@ -72,11 +66,10 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
               processItem: frontService.uploadFrontFileToBucket,
               message: {
                 resolveGroupTitle: (fileTree) => `Uploading '${fileTree.name}' folder`,
-                resolveGroupSuccessMessage: (fileTree, duration) =>
+                resolveGroupSuccess: (fileTree, duration) =>
                   `${fileTree.name}: ${fileTree.items.length} files uploaded in ${Duration.toMillis(duration)}ms`,
-                resolveItemMessage: (fileItem) =>
-                  `File '${fileItem.relativePath}' uploaded`,
-                resolveSuccessMessage: () => 'Files uploaded',
+                resolveItem: (fileItem) => `File '${fileItem.relativePath}' uploaded`,
+                resolveSuccess: () => 'Files uploaded',
               },
               subTaskConcurrency: configContext.bucket.upload.concurrency,
             })
