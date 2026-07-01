@@ -1,5 +1,6 @@
 import { Context } from 'effect'
 
-export const FileRepositoryContext = Context.GenericTag<{
-  readonly cwd: string
-}>('FileRepositoryContext')
+export class FileRepositoryContext extends Context.Tag('FileRepositoryContext')<
+  FileRepositoryContext,
+  { readonly cwd: string }
+>() {}
