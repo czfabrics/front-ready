@@ -1,54 +1,70 @@
 import { IterableElement, IteratorImpl } from '#core/common'
 import { FileObjectWrapperError } from '#errors/interop/file_object_wrapper'
 import { FileTypeWrapperError } from '#errors/interop/file_type_wrapper'
-import { genPromise } from '#helpers/promise'
-import { Task } from '@clack/prompts'
+import { taskLog } from '@clack/prompts'
 import { PlatformError } from '@effect/platform/Error'
 import { Duration, Effect } from 'effect'
 
-export const genTaskUi = <
-  TItems extends IteratorImpl<any>,
-  TItem extends IterableElement<TItems>,
+export const genTaskLogsUi = <
+  TItemGroup extends IteratorImpl<any>,
+  TItem extends IterableElement<TItemGroup>,
 >({
   title,
-  items,
-  functions,
+  itemGroups,
+  processItem,
+  message,
   subTaskConcurrency,
 }: {
   title: string
-  items: TItems
-  functions: {
-    processItem: (
-      item: TItem
-    ) => Effect.Effect<
-      void,
-      PlatformError | FileTypeWrapperError | FileObjectWrapperError,
-      never
-    >
+  itemGroups: TItemGroup[]
+  processItem: (
+    item: TItem
+  ) => Effect.Effect<
+    void,
+    PlatformError | FileTypeWrapperError | FileObjectWrapperError,
+    never
+  >
+  message: {
     resolveItemMessage: (item: TItem) => string
-    resolveFinalMessage: (items: TItems, duration: Duration.Duration) => string
+    resolveGroupTitle: (group: TItemGroup) => string
+    resolveGroupSuccessMessage: (group: TItemGroup, duration: Duration.Duration) => string
+    resolveSuccessMessage: () => string
   }
   subTaskConcurrency: number
-}): Task => {
-  return {
-    title,
-    task: genPromise(function* (logMessage) {
-      const [duration] = yield* Effect.timed(
-        Effect.gen(function* () {
-          const itemProcesses = Array.from(items).map((item) =>
-            Effect.gen(function* () {
-              yield* functions.processItem(item)
-              logMessage(functions.resolveItemMessage(item))
+}) => {
+  return Effect.gen(function* () {
+    const log = taskLog({
+      title,
+      retainLog: false,
+    })
+
+    const tasks = Array.from(itemGroups).map((group) => {
+      return Effect.gen(function* () {
+        const groupLog = log.group(message.resolveGroupTitle(group))
+
+        const [duration] = yield* Effect.timed(
+          Effect.gen(function* () {
+            const itemProcesses = Array.from(group).map((item) =>
+              Effect.gen(function* () {
+                yield* processItem(item)
+                groupLog.message(message.resolveItemMessage(item))
+              })
+            )
+
+            yield* Effect.all(itemProcesses, {
+              concurrency: subTaskConcurrency,
             })
-          )
-
-          yield* Effect.all(itemProcesses, {
-            concurrency: subTaskConcurrency,
           })
-        })
-      )
+        )
 
-      return functions.resolveFinalMessage(items, duration)
-    }),
-  }
+        groupLog.success(message.resolveGroupSuccessMessage(group, duration))
+      })
+    })
+
+    yield* Effect.all(tasks, {
+      concurrency: 'unbounded',
+    })
+
+    log.success(message.resolveSuccessMessage())
+  })
 }

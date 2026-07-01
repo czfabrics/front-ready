@@ -1,11 +1,11 @@
 import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { InternalConfigContext } from '#contexts/internal_config'
-import { runFrontBuildCommand } from '#core/front_build_command_runner'
 import { TUiWrapperError } from '#errors/interop/tui_wrapper'
 import { FrontFileObjectService } from '#file_object/front_service'
 import { toEffect } from '#helpers/promise'
-import { genTaskUi } from '#ui/tasks'
-import { confirm, tasks } from '@clack/prompts'
+import { genCommandUi } from '#ui/command'
+import { genTaskLogsUi } from '#ui/tasks'
+import { confirm } from '@clack/prompts'
 import { Duration, Effect } from 'effect'
 
 export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>()(
@@ -36,28 +36,37 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
 
             // TODO: check if bucket exists
 
-            yield* runFrontBuildCommand
-            const frontBuildFileTree = yield* frontService.listFrontBuildFileTree()
+            yield* genCommandUi({
+              command: deploymentContext.command,
+              message: {
+                resolveStartMessage: () => 'Building front',
+                resolveErrorMessage: () => 'Build failed',
+                resolveEndMessage: (duration) =>
+                  `Build finished in ${Duration.toMillis(duration)}ms`,
+              },
+            })
 
             const configContext = yield* InternalConfigContext
-            const frontFileUploadTasks = Array.from(frontBuildFileTree).map(
-              (fileTree) => {
-                return genTaskUi({
-                  title: 'Uploading front files',
-                  items: fileTree,
-                  functions: {
-                    processItem: frontService.uploadFrontFileToBucket,
-                    resolveItemMessage: (item) => `File '${item.relativePath}' uploaded`,
-                    resolveFinalMessage: (fileTree, duration) =>
-                      `Uploaded ${fileTree.items.length} files in ${Duration.toMillis(duration)}ms`,
-                  },
-                  subTaskConcurrency: configContext.bucket.upload.concurrency,
-                })
-              }
-            )
+            const frontBuildFileTrees = yield* frontService.listFrontBuildFileTrees()
 
-            // TODO: issue, propagate error through tui functions
-            yield* toEffect(tasks(frontFileUploadTasks), TUiWrapperError)
+            // TODO: error when no files
+
+            yield* genTaskLogsUi({
+              title: 'Uploading files',
+              itemGroups: Array.from(frontBuildFileTrees),
+              processItem: frontService.uploadFrontFileToBucket,
+              message: {
+                resolveGroupTitle: (fileTree) => `Uploading '${fileTree.name}' folder`,
+                resolveGroupSuccessMessage: (fileTree, duration) =>
+                  `${fileTree.name}: ${fileTree.items.length} files uploaded in ${Duration.toMillis(duration)}ms`,
+                resolveItemMessage: (fileItem) =>
+                  `File '${fileItem.relativePath}' uploaded`,
+                resolveSuccessMessage: () => 'Files uploaded',
+              },
+              subTaskConcurrency: configContext.bucket.upload.concurrency,
+            })
+
+            // TODO: be able to ctrl c...
 
             return {
               isAborted: false,
