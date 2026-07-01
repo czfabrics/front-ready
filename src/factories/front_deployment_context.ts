@@ -45,7 +45,10 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
               message: 'Pick an Angular configuration.',
               options: options,
             }),
-            TUiWrapperError
+            TUiWrapperError,
+            {
+              uiFunction: 'select',
+            }
           )
 
           return {

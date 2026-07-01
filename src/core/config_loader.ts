@@ -135,7 +135,8 @@ export const loadConfig = Effect.gen(function* () {
       name: 'frontready',
       configFileRequired: true,
     }),
-    ConfigWrapperError
+    ConfigWrapperError,
+    {}
   )
 
   const parsedConfig = ConfigSchema.safeParse(config)

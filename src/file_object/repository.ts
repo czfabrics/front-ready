@@ -39,7 +39,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
               ObjectOwnership: 'BucketOwnerEnforced',
             })
 
-            yield* toEffect(apiInstance.send(command), FileObjectWrapperError)
+            yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
           }),
         doesBucketExist: () =>
           Effect.gen(function* () {
@@ -48,7 +48,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             })
 
             const doesExist = yield* Effect.matchEffect(
-              toEffect(apiInstance.send(command), FileObjectWrapperError),
+              toEffect(apiInstance.send(command), FileObjectWrapperError, {}),
               {
                 onFailure: (error) => {
                   if (error.cause.name === 'NotFound') {
@@ -70,7 +70,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
               ACL: 'public-read',
             })
 
-            yield* toEffect(apiInstance.send(command), FileObjectWrapperError)
+            yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
           }),
         setWebsiteConfigurationOnBucket: (
           indexFileKeySuffix: string,
@@ -89,7 +89,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
               },
             })
 
-            yield* toEffect(apiInstance.send(command), FileObjectWrapperError)
+            yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
           }),
         putObject: (file: FileObject) =>
           Effect.gen(function* () {
@@ -103,7 +103,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
               CacheControl: file.cacheControlValue,
             })
 
-            yield* toEffect(apiInstance.send(command), FileObjectWrapperError)
+            yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
           }),
       }
     }),

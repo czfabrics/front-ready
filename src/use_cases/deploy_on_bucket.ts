@@ -22,7 +22,10 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
               confirm({
                 message: `Do you want to build and upload '${deploymentContext.buildOutputPath}' to bucket '${deploymentContext.bucketName}'?`,
               }),
-              TUiWrapperError
+              TUiWrapperError,
+              {
+                uiFunction: 'confirm',
+              }
             )
 
             if (!shouldContinue) {

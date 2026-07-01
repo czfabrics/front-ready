@@ -2,14 +2,31 @@ import { Effect } from 'effect'
 import { UnknownException } from 'effect/Cause'
 import { YieldWrap } from 'effect/Utils'
 
-type PromiseIntoEffectErrorConstructor<TError extends Error> = new (data: {
-  message: string
-  cause: UnknownException
-}) => TError
+type PromiseIntoEffectErrorConstructor<TError extends Error, TAdditionalData> = new (
+  data: {
+    message: string
+    cause: UnknownException
+  } & TAdditionalData
+) => TError
 
-export const toEffect = function <TData, TError extends Error>(
+export const toEffectSync = function <TData, TError extends Error, TAdditionalData>(
+  fn: () => TData,
+  errorClass: PromiseIntoEffectErrorConstructor<TError, TAdditionalData>,
+  additionalData: TAdditionalData
+): Effect.Effect<TData, TError> {
+  return toEffect(
+    new Promise<TData>((resolve) => {
+      resolve(fn())
+    }),
+    errorClass,
+    additionalData
+  )
+}
+
+export const toEffect = function <TData, TError extends Error, TAdditionalData>(
   promise: Promise<TData>,
-  errorClass: PromiseIntoEffectErrorConstructor<TError>
+  errorClass: PromiseIntoEffectErrorConstructor<TError, TAdditionalData>,
+  additionalData: TAdditionalData
 ): Effect.Effect<TData, TError> {
   return Effect.mapError(
     Effect.tryPromise(() => promise),
@@ -17,6 +34,7 @@ export const toEffect = function <TData, TError extends Error>(
       new errorClass({
         message: error.message,
         cause: error,
+        ...additionalData,
       })
   )
 }

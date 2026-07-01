@@ -5,7 +5,7 @@ import { NodeContext, NodeRuntime } from '@effect/platform-node'
 import { run } from 'cmd-ts'
 import { Effect } from 'effect'
 
-const runCli = toEffect(run(cli, process.argv.slice(2)), InternalError).pipe(
+const runCli = toEffect(run(cli, process.argv.slice(2)), InternalError, {}).pipe(
   Effect.flatMap(({ value }) => value)
 )
 

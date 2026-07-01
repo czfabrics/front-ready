@@ -28,7 +28,8 @@ export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUs
               confirm({
                 message: `Do you want to create the bucket '${deploymentContext.bucketName}'?`,
               }),
-              TUiWrapperError
+              TUiWrapperError,
+              { uiFunction: 'confirm' }
             )
 
             if (!shouldContinue) {
