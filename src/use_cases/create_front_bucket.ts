@@ -1,6 +1,6 @@
 import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { TUiWrapperError } from '#errors/interop/tui_wrapper'
-import { FrontFileObjectService } from '#file_object/front_service'
+import { FrontFileObjectService } from '#front/service'
 import { toEffect } from '#helpers/promise'
 import { confirm, log, spinner } from '@clack/prompts'
 import { Effect } from 'effect'

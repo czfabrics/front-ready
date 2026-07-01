@@ -9,8 +9,9 @@
       "#use_cases/*": ["src/use_cases/*"],
       "#cli/*": ["src/cli/*"],
       "#ui/*": ["src/ui/*"],
+      "#front/*": ["src/front/*"],
       "#file/*": ["src/file/*"],
-      "#file_object/*": ["src/file_object/*"]
-    }
-  }
+      "#file_object/*": ["src/file_object/*"],
+    },
+  },
 }

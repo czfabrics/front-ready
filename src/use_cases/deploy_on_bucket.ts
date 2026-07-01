@@ -1,11 +1,11 @@
 import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { InternalConfigContext } from '#contexts/internal_config'
 import { TUiWrapperError } from '#errors/interop/tui_wrapper'
-import { FrontFileObjectService } from '#file_object/front_service'
+import { FrontFileObjectService } from '#front/service'
 import { toEffect } from '#helpers/promise'
 import { genCommandUi } from '#ui/command'
 import { genTaskLogsUi } from '#ui/tasks'
-import { confirm } from '@clack/prompts'
+import { confirm, log } from '@clack/prompts'
 import { Duration, Effect } from 'effect'
 
 export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>()(
@@ -34,7 +34,15 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
               }
             }
 
-            // TODO: check if bucket exists
+            const doesBucketExist = yield* frontService.doesFrontBucketExist()
+
+            if (!doesBucketExist) {
+              log.error(`Bucket '${deploymentContext.bucketName}' should exist`)
+
+              return {
+                isAborted: true,
+              }
+            }
 
             yield* genCommandUi({
               command: deploymentContext.command,
