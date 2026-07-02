@@ -11,7 +11,7 @@ export const startCli = Effect.gen(function* () {
 
   const config = yield* loadConfig
 
-  log.success('Configuration loaded')
+  log.info('Configuration loaded')
 
   return { config }
 })
