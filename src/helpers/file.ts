@@ -1,4 +1,4 @@
-import { FileItem, FileTree } from '#file/types'
+import { FileComponent, FileItem, FileTree } from '#file/types'
 import { FileObject } from '#file_object/repository'
 import { Path } from '@effect/platform'
 import { Array, Effect, Option } from 'effect'
@@ -58,16 +58,18 @@ export const extractRootFileTree = function (file: FileItem, cwd: string) {
     const firstFolder = yield* extractFirstFolderFromPath(file.relativePath)
 
     if (Option.isNone(firstFolder)) {
-      return yield* FileTree.new({ relativePath: './', cwd, items: [file] })
+      return Option.none()
     }
 
-    return yield* FileTree.new({ relativePath: firstFolder.value, cwd, items: [file] })
+    return Option.some(
+      yield* FileTree.new({ relativePath: firstFolder.value, cwd, items: [file] })
+    )
   })
 }
 
-export const hasMinOneFile = function (trees: IterableIterator<FileTree>) {
-  for (const tree of trees) {
-    if (tree.items.length > 0) {
+export const hasMinOneFile = function (components: IterableIterator<FileComponent>) {
+  for (const component of components) {
+    if (component.length > 0) {
       return true
     }
   }

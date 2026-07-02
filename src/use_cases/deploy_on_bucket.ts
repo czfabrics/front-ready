@@ -63,9 +63,9 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
             itemGroups: Array.from(frontBuildFileTrees),
             processItem: frontService.uploadFrontFileToBucket,
             message: {
-              resolveGroupTitle: (fileTree) => `Uploading '${fileTree.name}' folder`,
-              resolveGroupSuccess: (fileTree, duration) =>
-                `${fileTree.name}: ${fileTree.items.length} files uploaded in ${Duration.toMillis(duration)}ms`,
+              resolveGroupTitle: (fileComponent) => `Uploading '${fileComponent.name}'`,
+              resolveGroupSuccess: (fileComponent, duration) =>
+                `${fileComponent.name}: ${fileComponent.length} files uploaded in ${Duration.toMillis(duration)}ms`,
               resolveItem: (fileItem) => `File '${fileItem.relativePath}' uploaded`,
               resolveSuccess: () => 'Files uploaded',
             },

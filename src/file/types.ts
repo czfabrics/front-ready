@@ -7,7 +7,7 @@ import { FileSystem } from '@effect/platform/FileSystem'
 import { Effect, Equal, Hash } from 'effect'
 import { lookup } from 'mrmime'
 
-export type FileItem = {
+export interface FileItem extends IteratorImpl<FileItem> {
   readonly name: string
   readonly extension: string
   readonly relativePath: string
@@ -15,6 +15,7 @@ export type FileItem = {
   readonly cwd: string
   readonly content: Effect.Effect<Uint8Array<ArrayBufferLike>, PlatformError, never>
   readonly contentType: Effect.Effect<string, PlatformError | FileTypeWrapperError, never>
+  readonly length: number
 }
 
 export const FileItem = {
@@ -44,6 +45,24 @@ export const FileItem = {
             }
           )
         },
+        get length() {
+          return 1
+        },
+        [Symbol.iterator](): Iterator<FileItem> {
+          let isFirst = true
+
+          return {
+            next: (): IteratorResult<FileItem> => {
+              if (isFirst) {
+                isFirst = false
+
+                return { value: this, done: false }
+              }
+
+              return { value: undefined, done: true }
+            },
+          }
+        },
       } satisfies FileItem
     })
   },
@@ -56,19 +75,19 @@ const isFileTree = function (thing: unknown): thing is FileTree {
   return typeof thing === 'object' && thing !== null && FileTreeTypeId in thing
 }
 
-export type FileTree = {
+export interface FileTree extends IteratorImpl<FileItem>, Equal.Equal {
   readonly [FileTreeTypeId]: FileTreeTypeId
   readonly name: string
   readonly relativePath: string
   readonly absolutePath: string
   readonly cwd: string
   readonly items: FileItem[]
+  readonly length: number
   readonly append: (
     this: FileTree,
     newItems: FileItem[]
   ) => Effect.Effect<FileTree, never, Path.Path>
-} & IteratorImpl<FileItem> &
-  Equal.Equal
+}
 
 export const FileTree = {
   new: function (data: { relativePath: string; cwd: string; items: FileItem[] }) {
@@ -82,6 +101,9 @@ export const FileTree = {
         absolutePath: path.resolve(data.cwd, data.relativePath),
         cwd: data.cwd,
         items: data.items,
+        get length() {
+          return this.items.length
+        },
         append: function (
           newItems: FileItem[]
         ): Effect.Effect<FileTree, never, Path.Path> {
@@ -116,4 +138,9 @@ export const FileTree = {
       } satisfies FileTree
     })
   },
+  is: function (thing: unknown): thing is FileTree {
+    return isFileTree(thing)
+  },
 }
+
+export type FileComponent = FileTree | FileItem

@@ -2,8 +2,9 @@ import { FileObjectBucketContext } from '#contexts/file_object_bucket'
 import { FileRepositoryContext } from '#contexts/file_repository'
 import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { InternalConfigContext } from '#contexts/internal_config'
+import { FileError } from '#errors/interop/file'
 import { FileRepository } from '#file/repository'
-import { FileItem, FileTree } from '#file/types'
+import { FileComponent, FileItem, FileTree } from '#file/types'
 import { FileObjectRepository } from '#file_object/repository'
 import { genFn } from '#helpers/effect'
 import {
@@ -55,23 +56,40 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
             configContext.bucket.upload.filesToTheEnd
           )
 
-          let map = HashMap.empty<string, FileTree>()
+          let map = HashMap.empty<string, FileComponent>()
 
           for (const file of files) {
-            const fileTree = yield* extractRootFileTree(
+            const resolvedFileTree = yield* extractRootFileTree(
               file,
               frontContext.buildOutputPath
             )
+            if (Option.isNone(resolvedFileTree)) {
+              map = HashMap.set(map, file.absolutePath, file)
 
-            const existingFileTree = HashMap.get(map, fileTree.absolutePath)
-
-            if (Option.isSome(existingFileTree)) {
-              const updatedFileTree = yield* existingFileTree.value.append([file])
-
-              map = HashMap.set(map, existingFileTree.value.absolutePath, updatedFileTree)
-            } else {
-              map = HashMap.set(map, fileTree.absolutePath, fileTree)
+              continue
             }
+
+            const existingFileTree = HashMap.get(map, resolvedFileTree.value.absolutePath)
+            if (Option.isNone(existingFileTree)) {
+              map = HashMap.set(
+                map,
+                resolvedFileTree.value.absolutePath,
+                resolvedFileTree.value
+              )
+              continue
+            }
+
+            if (!FileTree.is(existingFileTree.value)) {
+              return yield* Effect.fail(
+                new FileError({
+                  message: `The same path was resolved both file item & file tree`,
+                  file: existingFileTree.value,
+                })
+              )
+            }
+
+            const updatedFileTree = yield* existingFileTree.value.append([file])
+            map = HashMap.set(map, existingFileTree.value.absolutePath, updatedFileTree)
           }
 
           return HashMap.values(map)
