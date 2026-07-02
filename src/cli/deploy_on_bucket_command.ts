@@ -2,6 +2,7 @@ import { startCli } from '#cli/cli_starter'
 import { CliCommandContext } from '#contexts/cli_command'
 import { InternalConfigContext } from '#contexts/internal_config'
 import { makeFrontDeploymentContextLayer } from '#factories/front_deployment_context'
+import { runAndInterruptOnCtrlC } from '#helpers/runtime'
 import { DeployOnBucketUseCase } from '#use_cases/deploy_on_bucket'
 import { cancel, log, outro } from '@clack/prompts'
 import { command } from 'cmd-ts'
@@ -25,17 +26,14 @@ export const deployOnBucketCommand = command({
       yield* Effect.gen(function* () {
         const useCase = yield* DeployOnBucketUseCase
 
-        const { isAborted } = yield* useCase.run()
+        yield* runAndInterruptOnCtrlC(useCase.run())
 
-        if (isAborted) {
-          cancel(`Deployment aborted`)
-        } else {
-          outro(`Deployment finished`)
-        }
+        outro(`Deployment finished`)
       }).pipe(
         Effect.provide(DeployOnBucketUseCase.Default),
         Effect.provide(ConfigContextLayer),
         Effect.provide(DeploymentContextLayer),
+        Effect.onInterrupt(() => Effect.sync(() => cancel(`Deployment aborted`))),
         Effect.catchAll((error) =>
           Effect.gen(function* () {
             log.error(error.message)

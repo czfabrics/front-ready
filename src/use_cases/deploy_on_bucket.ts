@@ -24,18 +24,14 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
             })
 
             if (!shouldContinue) {
-              return {
-                isAborted: true,
-              }
+              return yield* Effect.interrupt
             }
 
             const doesBucketExist = yield* frontService.doesFrontBucketExist()
             if (!doesBucketExist) {
               log.error(`Bucket '${deploymentContext.bucketName}' should exist`)
 
-              return {
-                isAborted: true,
-              }
+              return yield* Effect.interrupt
             }
 
             yield* genCommandUi({
@@ -55,9 +51,7 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
             if (!hasOneFile) {
               log.error('Front files should contain minimum one file')
 
-              return {
-                isAborted: true,
-              }
+              return yield* Effect.interrupt
             }
 
             yield* genTaskLogsUi({
@@ -73,12 +67,6 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
               },
               subTaskConcurrency: configContext.bucket.upload.concurrency,
             })
-
-            // TODO: be able to ctrl c...
-
-            return {
-              isAborted: false,
-            }
           }),
       }
     }),

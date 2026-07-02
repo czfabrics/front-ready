@@ -19,9 +19,7 @@ export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUs
             if (doesBucketExist) {
               log.info(`The bucket '${deploymentContext.bucketName}' already exist`)
 
-              return {
-                isAborted: true,
-              }
+              return yield* Effect.interrupt
             }
 
             const shouldContinue = yield* genConfirmUi({
@@ -30,9 +28,7 @@ export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUs
             })
 
             if (!shouldContinue) {
-              return {
-                isAborted: true,
-              }
+              return yield* Effect.interrupt
             }
 
             yield* genLoaderUi({
@@ -43,10 +39,6 @@ export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUs
                 resolveEnd: () => 'Front bucket created',
               },
             })
-
-            return {
-              isAborted: false,
-            }
           }),
       }
     }),

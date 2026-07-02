@@ -2,6 +2,7 @@ import { startCli } from '#cli/cli_starter'
 import { CliCommandContext } from '#contexts/cli_command'
 import { InternalConfigContext } from '#contexts/internal_config'
 import { makeFrontDeploymentContextLayer } from '#factories/front_deployment_context'
+import { runAndInterruptOnCtrlC } from '#helpers/runtime'
 import { CreateFrontBucketUseCase } from '#use_cases/create_front_bucket'
 import { cancel, log, outro } from '@clack/prompts'
 import { command } from 'cmd-ts'
@@ -22,20 +23,17 @@ export const createFrontBucketCommand = command({
       const ConfigContextLayer = Layer.succeed(InternalConfigContext, config)
       const DeploymentContextLayer = makeFrontDeploymentContextLayer(config)
 
-      const tt = Effect.gen(function* () {
+      yield* Effect.gen(function* () {
         const useCase = yield* CreateFrontBucketUseCase
 
-        const { isAborted } = yield* useCase.run()
+        yield* runAndInterruptOnCtrlC(useCase.run())
 
-        if (isAborted) {
-          cancel(`Creation aborted`)
-        } else {
-          outro(`Creation finished`)
-        }
+        outro(`Creation finished`)
       }).pipe(
         Effect.provide(CreateFrontBucketUseCase.Default),
         Effect.provide(ConfigContextLayer),
         Effect.provide(DeploymentContextLayer),
+        Effect.onInterrupt(() => Effect.sync(() => cancel(`Creation aborted`))),
         Effect.catchAll((error) =>
           Effect.gen(function* () {
             log.error(error.message)
@@ -44,8 +42,6 @@ export const createFrontBucketCommand = command({
           })
         )
       )
-
-      yield* tt
     }).pipe(Effect.provide(CommandContextLayer))
   },
 })
