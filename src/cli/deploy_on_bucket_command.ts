@@ -18,7 +18,7 @@ export const deployOnBucketCommand = command({
     })
 
     return Effect.gen(function* () {
-      const { config } = yield* startCli
+      const { config } = yield* startCli()
 
       const ConfigContextLayer = Layer.succeed(InternalConfigContext, config)
       const DeploymentContextLayer = makeFrontDeploymentContextLayer(config)
@@ -33,7 +33,7 @@ export const deployOnBucketCommand = command({
         Effect.provide(DeployOnBucketUseCase.Default),
         Effect.provide(ConfigContextLayer),
         Effect.provide(DeploymentContextLayer),
-        Effect.onInterrupt(() => Effect.sync(() => cancel(`Deployment aborted`))),
+        Effect.onInterrupt(() => Effect.sync(() => cancel(`Deployment canceled`))),
         Effect.catchAll((error) =>
           Effect.gen(function* () {
             log.error(error.message)

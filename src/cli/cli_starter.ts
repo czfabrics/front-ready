@@ -4,14 +4,16 @@ import { intro, log } from '@clack/prompts'
 import { Effect } from 'effect'
 import packageInfo from 'package.json'
 
-export const startCli = Effect.gen(function* () {
-  const context = yield* CliCommandContext
+export const startCli = function () {
+  return Effect.gen(function* () {
+    const context = yield* CliCommandContext
 
-  intro(`${packageInfo.name}@${packageInfo.version} - ${context.commandName}`)
+    intro(`${packageInfo.name}@${packageInfo.version} - ${context.commandName}`)
 
-  const config = yield* loadConfig
+    const config = yield* loadConfig
 
-  log.info('Configuration loaded')
+    log.info('Configuration loaded')
 
-  return { config }
-})
+    return { config }
+  })
+}
