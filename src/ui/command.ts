@@ -1,7 +1,8 @@
 import { runCommand } from '#core/command_runner'
 import { CommandError } from '#errors/command'
-import { spinner } from '@clack/prompts'
+import { genLoaderUi } from '#ui/loader'
 import { Command } from '@effect/platform'
+import { PlatformError } from '@effect/platform/Error'
 import { Duration, Effect } from 'effect'
 
 export const genCommandUi = function ({
@@ -11,31 +12,27 @@ export const genCommandUi = function ({
   command: Command.Command
   message: {
     resolveStart: () => string
-    resolveError: (exitCode: number) => string
+    resolveCancel: (exitCode: number) => string
+    resolveError: (error: PlatformError | CommandError) => string
     resolveEnd: (duration: Duration.Duration) => string
   }
 }) {
-  return Effect.gen(function* () {
-    const spin = spinner({
-      indicator: 'timer',
-      frames: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
-      delay: 80,
-      styleFrame: (frame) => `\x1b[35m${frame}\x1b[0m`,
-    })
-    spin.start(message.resolveStart())
+  return genLoaderUi({
+    process: (logMessage) =>
+      Effect.gen(function* () {
+        const exitCode = yield* runCommand(command, logMessage)
 
-    const [duration, exitCode] = yield* Effect.timed(runCommand(command, spin.message))
+        if (exitCode !== 0) {
+          return yield* Effect.fail(
+            new CommandError({
+              message: `Command exited with code '${exitCode}'`,
+              code: exitCode,
+            })
+          )
+        }
 
-    if (exitCode !== 0) {
-      spin.error(message.resolveError(exitCode))
-      return yield* Effect.fail(
-        new CommandError({
-          message: message.resolveError(exitCode),
-          code: exitCode,
-        })
-      )
-    }
-
-    spin.stop(message.resolveEnd(duration))
+        return exitCode
+      }),
+    message: message,
   })
 }

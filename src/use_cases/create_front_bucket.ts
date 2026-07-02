@@ -3,7 +3,7 @@ import { FrontFileObjectService } from '#front/service'
 import { genConfirmUi } from '#ui/confirm'
 import { genLoaderUi } from '#ui/loader'
 import { log } from '@clack/prompts'
-import { Effect } from 'effect'
+import { Duration, Effect } from 'effect'
 
 export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUseCase>()(
   'CreateFrontBucketUseCase',
@@ -35,8 +35,10 @@ export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUs
               process: frontService.createFrontBucket,
               message: {
                 resolveStart: () => 'Creating front bucket',
-                resolveError: (error) => error.message,
-                resolveEnd: () => 'Front bucket created',
+                resolveError: (error) => `Creation failed: ${error.message}`,
+                resolveCancel: () => 'Creation canceled',
+                resolveEnd: (duration) =>
+                  `Creation finished in ${Duration.toMillis(duration)}ms`,
               },
             })
           }),

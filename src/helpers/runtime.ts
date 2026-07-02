@@ -25,3 +25,31 @@ export const runAndInterruptOnCtrlC = function <TResult, TError, TDeps>(
 ): Effect.Effect<TResult, TError, TDeps> {
   return Effect.raceFirst(interruptOnCtrlC(), effect)
 }
+
+const overrideProcessExit = (override: (code?: number) => void) =>
+  Effect.acquireRelease(
+    Effect.sync(() => {
+      const original = process.exit
+      process.exit = override as typeof process.exit
+      return original
+    }),
+    (original) =>
+      Effect.sync(() => {
+        process.exit = original
+      })
+  )
+
+export const interceptProcessExit = function <TResult, TError, TDeps>(
+  effect: Effect.Effect<TResult, TError, TDeps>,
+  callback: (exitCode: number) => void
+) {
+  return Effect.scoped(
+    Effect.gen(function* () {
+      yield* overrideProcessExit((exitCode) => {
+        callback(exitCode ?? 130)
+      })
+
+      return yield* effect
+    })
+  )
+}

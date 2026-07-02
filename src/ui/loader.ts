@@ -1,15 +1,19 @@
+import { interceptProcessExit } from '#helpers/runtime'
 import { spinner } from '@clack/prompts'
-import { Effect } from 'effect'
+import { Duration, Effect } from 'effect'
 
-export const genLoaderUi = function <TResult, TError extends Error>({
+export const genLoaderUi = function <TResult, TError, TDeps>({
   process,
   message,
 }: {
-  process: () => Effect.Effect<TResult, TError, never>
+  process: (
+    logMessage: (message: string) => void
+  ) => Effect.Effect<TResult, TError, TDeps>
   message: {
     resolveStart: () => string
-    resolveError: (error: Error) => string
-    resolveEnd: () => string
+    resolveCancel: (exitCode: number) => string
+    resolveError: (error: TError) => string
+    resolveEnd: (duration: Duration.Duration) => string
   }
 }) {
   return Effect.gen(function* () {
@@ -19,19 +23,28 @@ export const genLoaderUi = function <TResult, TError extends Error>({
       delay: 80,
       styleFrame: (frame) => `\x1b[35m${frame}\x1b[0m`,
     })
-    spin.start(message.resolveStart())
 
-    const result = yield* process().pipe(
-      Effect.catchAll((error) =>
-        Effect.gen(function* () {
-          spin.error(message.resolveError(error))
+    return yield* interceptProcessExit(
+      Effect.gen(function* () {
+        spin.start(message.resolveStart())
 
-          return yield* Effect.fail(error)
-        })
-      )
+        const [duration, result] = yield* Effect.timed(
+          process(spin.message).pipe(
+            Effect.catchAll((error) =>
+              Effect.gen(function* () {
+                spin.error(message.resolveError(error))
+
+                return yield* Effect.fail(error)
+              })
+            )
+          )
+        )
+
+        spin.stop(message.resolveEnd(duration))
+
+        return result
+      }),
+      (exitCode) => spin.cancel(message.resolveCancel(exitCode))
     )
-
-    spin.stop(message.resolveEnd())
-    return result
   })
 }

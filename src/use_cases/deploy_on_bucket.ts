@@ -38,7 +38,8 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
               command: deploymentContext.command,
               message: {
                 resolveStart: () => 'Building front',
-                resolveError: () => 'Build failed',
+                resolveError: (error) => `Build failed: ${error.message}`,
+                resolveCancel: () => 'Build canceled',
                 resolveEnd: (duration) =>
                   `Build finished in ${Duration.toMillis(duration)}ms`,
               },
