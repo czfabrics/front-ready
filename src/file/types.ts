@@ -1,6 +1,6 @@
 import { IteratorImpl } from '#core/common'
 import { FileTypeWrapperError } from '#errors/interop/file_type_wrapper'
-import { toEffectSync } from '#helpers/promise'
+import { toEffectSync } from '#helpers/effect'
 import { Path } from '@effect/platform'
 import { PlatformError } from '@effect/platform/Error'
 import { FileSystem } from '@effect/platform/FileSystem'

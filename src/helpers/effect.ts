@@ -52,3 +52,29 @@ export const genPromise = function <TData, TResult, TError>(
     )
   }
 }
+
+export const genFn = function <
+  TArgs extends readonly unknown[],
+  Eff extends YieldWrap<Effect.Effect<any, any, any>>,
+  AEff,
+>(
+  callback: (...args: TArgs) => Generator<Eff, AEff, never>
+): (
+  ...args: TArgs
+) => Effect.Effect<
+  AEff,
+  [Eff] extends [never]
+    ? never
+    : [Eff] extends [YieldWrap<Effect.Effect<infer _A, infer E, infer _R>>]
+      ? E
+      : never,
+  [Eff] extends [never]
+    ? never
+    : [Eff] extends [YieldWrap<Effect.Effect<infer _A, infer _E, infer R>>]
+      ? R
+      : never
+> {
+  return (...args: TArgs) => {
+    return Effect.gen(() => callback(...args))
+  }
+}

@@ -1,5 +1,5 @@
 import { TUiWrapperError } from '#errors/interop/tui_wrapper'
-import { toEffect } from '#helpers/promise'
+import { toEffect } from '#helpers/effect'
 import { confirm } from '@clack/prompts'
 
 export const genConfirmUi = function ({

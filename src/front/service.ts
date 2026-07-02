@@ -5,6 +5,7 @@ import { InternalConfigContext } from '#contexts/internal_config'
 import { FileRepository } from '#file/repository'
 import { FileItem, FileTree } from '#file/types'
 import { FileObjectRepository } from '#file_object/repository'
+import { genFn } from '#helpers/effect'
 import {
   detectAndFillCacheControl,
   extractRootFileTree,
@@ -49,56 +50,48 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
         listFrontBuildFiles: () => {
           return fileRepository.listFiles(configContext.bucket.upload.filesToTheEnd)
         },
-        listFrontBuildFileTrees: () => {
-          return Effect.gen(function* () {
-            const files = yield* fileRepository.listFiles(
-              configContext.bucket.upload.filesToTheEnd
+        listFrontBuildFileTrees: genFn(function* () {
+          const files = yield* fileRepository.listFiles(
+            configContext.bucket.upload.filesToTheEnd
+          )
+
+          let map = HashMap.empty<string, FileTree>()
+
+          for (const file of files) {
+            const fileTree = yield* extractRootFileTree(
+              file,
+              frontContext.buildOutputPath
             )
 
-            let map = HashMap.empty<string, FileTree>()
+            const existingFileTree = HashMap.get(map, fileTree.absolutePath)
 
-            for (const file of files) {
-              const fileTree = yield* extractRootFileTree(
-                file,
-                frontContext.buildOutputPath
-              )
+            if (Option.isSome(existingFileTree)) {
+              const updatedFileTree = yield* existingFileTree.value.append([file])
 
-              const existingFileTree = HashMap.get(map, fileTree.absolutePath)
-
-              if (Option.isSome(existingFileTree)) {
-                const updatedFileTree = yield* existingFileTree.value.append([file])
-
-                map = HashMap.set(
-                  map,
-                  existingFileTree.value.absolutePath,
-                  updatedFileTree
-                )
-              } else {
-                map = HashMap.set(map, fileTree.absolutePath, fileTree)
-              }
+              map = HashMap.set(map, existingFileTree.value.absolutePath, updatedFileTree)
+            } else {
+              map = HashMap.set(map, fileTree.absolutePath, fileTree)
             }
+          }
 
-            return HashMap.values(map)
-          })
-        },
-        createFrontBucket: () =>
-          Effect.gen(function* () {
-            yield* fileObjectRepository.createBucket()
-            yield* fileObjectRepository.setPublicReadAclOnBucket()
-            yield* fileObjectRepository.setWebsiteConfigurationOnBucket(
-              configContext.bucket.front.indexDocumentSuffix,
-              configContext.bucket.front.errorDocumentKey
-            )
-          }),
-        uploadFrontFileToBucket: (file: FileItem) =>
-          Effect.gen(function* () {
-            const object = detectAndFillCacheControl(
-              yield* fileIntoObject(file),
-              configContext.bucket.front.cacheControlMapping
-            )
+          return HashMap.values(map)
+        }),
+        createFrontBucket: genFn(function* () {
+          yield* fileObjectRepository.createBucket()
+          yield* fileObjectRepository.setPublicReadAclOnBucket()
+          yield* fileObjectRepository.setWebsiteConfigurationOnBucket(
+            configContext.bucket.front.indexDocumentSuffix,
+            configContext.bucket.front.errorDocumentKey
+          )
+        }),
+        uploadFrontFileToBucket: genFn(function* (file: FileItem) {
+          const object = detectAndFillCacheControl(
+            yield* fileIntoObject(file),
+            configContext.bucket.front.cacheControlMapping
+          )
 
-            yield* fileObjectRepository.putObject(object)
-          }),
+          yield* fileObjectRepository.putObject(object)
+        }),
       }
     }),
     dependencies: [

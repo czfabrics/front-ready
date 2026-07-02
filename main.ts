@@ -1,6 +1,6 @@
 import { cli } from '#cli/cli'
 import { InternalError } from '#errors/internal'
-import { toEffect } from '#helpers/promise'
+import { toEffect } from '#helpers/effect'
 import { NodeContext, NodeRuntime } from '@effect/platform-node'
 import { run } from 'cmd-ts'
 import { Effect } from 'effect'

@@ -4,7 +4,7 @@ import {
   FileObjectApiInstance,
   FileObjectApiInstanceLive,
 } from '#file_object/api_instance'
-import { toEffect } from '#helpers/promise'
+import { genFn, toEffect } from '#helpers/effect'
 import {
   CreateBucketCommand,
   HeadBucketCommand,
@@ -29,82 +29,77 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
       const context = yield* FileObjectBucketContext
 
       return {
-        createBucket: () =>
-          Effect.gen(function* () {
-            const command = new CreateBucketCommand({
-              Bucket: context.bucketName,
-              CreateBucketConfiguration: {
-                LocationConstraint: context.region,
+        createBucket: genFn(function* () {
+          const command = new CreateBucketCommand({
+            Bucket: context.bucketName,
+            CreateBucketConfiguration: {
+              LocationConstraint: context.region,
+            },
+            ObjectOwnership: 'BucketOwnerEnforced',
+          })
+
+          yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
+        }),
+        doesBucketExist: genFn(function* () {
+          const command = new HeadBucketCommand({
+            Bucket: context.bucketName,
+          })
+
+          const doesExist = yield* Effect.matchEffect(
+            toEffect(apiInstance.send(command), FileObjectWrapperError, {}),
+            {
+              onFailure: (error) => {
+                if (error.cause.name === 'NotFound') {
+                  return Effect.succeed(false)
+                }
+
+                return Effect.fail(error)
               },
-              ObjectOwnership: 'BucketOwnerEnforced',
-            })
+              onSuccess: () => Effect.succeed(true),
+            }
+          )
 
-            yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
-          }),
-        doesBucketExist: () =>
-          Effect.gen(function* () {
-            const command = new HeadBucketCommand({
-              Bucket: context.bucketName,
-            })
+          return doesExist
+        }),
+        setPublicReadAclOnBucket: genFn(function* () {
+          const command = new PutBucketAclCommand({
+            Bucket: context.bucketName,
+            ACL: 'public-read',
+          })
 
-            const doesExist = yield* Effect.matchEffect(
-              toEffect(apiInstance.send(command), FileObjectWrapperError, {}),
-              {
-                onFailure: (error) => {
-                  if (error.cause.name === 'NotFound') {
-                    return Effect.succeed(false)
-                  }
-
-                  return Effect.fail(error)
-                },
-                onSuccess: () => Effect.succeed(true),
-              }
-            )
-
-            return doesExist
-          }),
-        setPublicReadAclOnBucket: () =>
-          Effect.gen(function* () {
-            const command = new PutBucketAclCommand({
-              Bucket: context.bucketName,
-              ACL: 'public-read',
-            })
-
-            yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
-          }),
-        setWebsiteConfigurationOnBucket: (
+          yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
+        }),
+        setWebsiteConfigurationOnBucket: genFn(function* (
           indexFileKeySuffix: string,
           errorFileKey: string
-        ) =>
-          Effect.gen(function* () {
-            const command = new PutBucketWebsiteCommand({
-              Bucket: context.bucketName,
-              WebsiteConfiguration: {
-                IndexDocument: {
-                  Suffix: indexFileKeySuffix,
-                },
-                ErrorDocument: {
-                  Key: errorFileKey,
-                },
+        ) {
+          const command = new PutBucketWebsiteCommand({
+            Bucket: context.bucketName,
+            WebsiteConfiguration: {
+              IndexDocument: {
+                Suffix: indexFileKeySuffix,
               },
-            })
+              ErrorDocument: {
+                Key: errorFileKey,
+              },
+            },
+          })
 
-            yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
-          }),
-        putObject: (file: FileObject) =>
-          Effect.gen(function* () {
-            const command = new PutObjectCommand({
-              ACL: 'public-read',
-              Bucket: context.bucketName,
-              Key: file.key,
-              Body: file.content,
-              ContentEncoding: 'binary',
-              ContentType: file.contentType,
-              CacheControl: file.cacheControlValue,
-            })
+          yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
+        }),
+        putObject: genFn(function* (file: FileObject) {
+          const command = new PutObjectCommand({
+            ACL: 'public-read',
+            Bucket: context.bucketName,
+            Key: file.key,
+            Body: file.content,
+            ContentEncoding: 'binary',
+            ContentType: file.contentType,
+            CacheControl: file.cacheControlValue,
+          })
 
-            yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
-          }),
+          yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
+        }),
       }
     }),
     dependencies: [FileObjectApiInstanceLive],

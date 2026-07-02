@@ -1,6 +1,6 @@
 import { ConfigFormatError } from '#errors/config_format'
 import { ConfigWrapperError } from '#errors/interop/config_wrapper'
-import { toEffect } from '#helpers/promise'
+import { toEffect } from '#helpers/effect'
 import { loadConfig as c12LoadConfig } from 'c12'
 import { Effect } from 'effect'
 import z from 'zod'
