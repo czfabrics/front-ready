@@ -1,4 +1,4 @@
-import { IterableElement, IteratorImpl } from '#core/common'
+import { IterableElement, IteratorImpl } from '#core/types'
 import { FileObjectWrapperError } from '#errors/interop/file_object_wrapper'
 import { FileTypeWrapperError } from '#errors/interop/file_type_wrapper'
 import { taskLog } from '@clack/prompts'

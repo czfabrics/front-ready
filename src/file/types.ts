@@ -1,4 +1,4 @@
-import { IteratorImpl } from '#core/common'
+import { IteratorImpl } from '#core/types'
 import { FileTypeWrapperError } from '#errors/interop/file_type_wrapper'
 import { toEffectSync } from '#helpers/effect'
 import { Path } from '@effect/platform'

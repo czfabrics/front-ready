@@ -1,8 +1,3 @@
-import { ConfigFormatError } from '#errors/config_format'
-import { ConfigWrapperError } from '#errors/interop/config_wrapper'
-import { toEffect } from '#helpers/effect'
-import { loadConfig as c12LoadConfig } from 'c12'
-import { Effect } from 'effect'
 import z from 'zod'
 
 const NUMERIC = new Set([
@@ -64,8 +59,8 @@ const CacheControlSchema = z.string().superRefine((header, ctx) => {
 
 export type Config = z.input<typeof ConfigSchema>
 export type InternalConfig = z.output<typeof ConfigSchema>
-type ConfigSchema = typeof ConfigSchema
-const ConfigSchema = z.object({
+export type ConfigSchema = typeof ConfigSchema
+export const ConfigSchema = z.object({
   bucket: z.object({
     namePrefix: z
       .string()
@@ -128,27 +123,4 @@ const ConfigSchema = z.object({
       }),
     }),
   ]),
-})
-
-export const loadConfig = Effect.gen(function* () {
-  const { config } = yield* toEffect(
-    c12LoadConfig<Config>({
-      name: 'frontready',
-      configFileRequired: true,
-    }),
-    ConfigWrapperError,
-    {}
-  )
-
-  const parsedConfig = ConfigSchema.safeParse(config)
-
-  if (parsedConfig.success) {
-    return parsedConfig.data
-  }
-
-  return yield* Effect.fail(
-    new ConfigFormatError({
-      cause: parsedConfig.error,
-    })
-  )
 })

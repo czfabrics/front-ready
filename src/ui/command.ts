@@ -1,5 +1,5 @@
-import { runCommand } from '#core/command_runner'
 import { CommandError } from '#errors/command'
+import { runCommand } from '#helpers/command'
 import { genLoaderUi } from '#ui/loader'
 import { Command } from '@effect/platform'
 import { PlatformError } from '@effect/platform/Error'

@@ -1,4 +1,4 @@
-import { InternalConfig } from '#core/config_loader'
+import { InternalConfig } from '#config/schema'
 
 export const makeDeploymentBucketName = function (
   config: InternalConfig,

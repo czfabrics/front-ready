@@ -1,4 +1,4 @@
-import { InternalConfig } from '#core/config_loader'
+import { InternalConfig } from '#config/schema'
 import { Data } from 'effect'
 
 export class FrontError extends Data.TaggedError('FrontError')<{

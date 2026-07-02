@@ -1,5 +1,5 @@
+import { InternalConfig } from '#config/schema'
 import { FrontDeploymentContext } from '#contexts/front_deployment'
-import { InternalConfig } from '#core/config_loader'
 import { TUiWrapperError } from '#errors/interop/tui_wrapper'
 import { makeDeploymentBucketName } from '#factories/bucket_name'
 import { resolveAngularConfigurations } from '#helpers/angular'

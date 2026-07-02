@@ -55,19 +55,17 @@ export const extractFirstFolderFromPath = function (relativePath: string) {
   })
 }
 
-export const extractRootFileTree = function (file: FileItem, cwd: string) {
-  return Effect.gen(function* () {
-    const firstFolder = yield* extractFirstFolderFromPath(file.relativePath)
+export const extractRootFileTree = genFn(function* (file: FileItem, cwd: string) {
+  const firstFolder = yield* extractFirstFolderFromPath(file.relativePath)
 
-    if (Option.isNone(firstFolder)) {
-      return Option.none()
-    }
+  if (Option.isNone(firstFolder)) {
+    return Option.none()
+  }
 
-    return Option.some(
-      yield* FileTree.new({ relativePath: firstFolder.value, cwd, items: [file] })
-    )
-  })
-}
+  return Option.some(
+    yield* FileTree.new({ relativePath: firstFolder.value, cwd, items: [file] })
+  )
+})
 
 export const hasMinOneFile = function (components: IterableIterator<FileComponent>) {
   for (const component of components) {

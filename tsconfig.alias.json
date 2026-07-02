@@ -10,6 +10,7 @@
       "#cli/*": ["src/cli/*"],
       "#ui/*": ["src/ui/*"],
       "#front/*": ["src/front/*"],
+      "#config/*": ["src/config/*"],
       "#file/*": ["src/file/*"],
       "#file_object/*": ["src/file_object/*"],
     },
