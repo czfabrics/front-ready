@@ -1,10 +1,12 @@
 import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { InternalConfigContext } from '#contexts/internal_config'
+import { FrontError } from '#errors/front'
 import { FrontFileObjectService } from '#front/service'
 import { genFn } from '#helpers/effect'
-import { hasIndexHtmlAtRoot, hasMinOneFile } from '#helpers/file'
+import { hasMinOneFile, pickIndexHtml } from '#helpers/file'
 import { genCommandUi } from '#ui/command'
 import { genConfirmUi } from '#ui/confirm'
+import { genLoaderUi } from '#ui/loader'
 import { genTaskLogsUi } from '#ui/tasks'
 import { log } from '@clack/prompts'
 import { Duration, Effect } from 'effect'
@@ -46,36 +48,54 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
           })
 
           const configContext = yield* InternalConfigContext
-          const frontBuildFileTrees = yield* frontService.listFrontBuildFileTrees()
+          const frontBuildFileComponents =
+            yield* frontService.listFrontBuildFileByRootComponents()
 
-          const hasOneFile = hasMinOneFile(frontBuildFileTrees)
+          const hasOneFile = hasMinOneFile(frontBuildFileComponents)
           if (!hasOneFile) {
             log.error('Front files should contain minimum one file')
 
             return yield* Effect.interrupt
           }
 
-          const hasIndexHtml = hasIndexHtmlAtRoot(frontBuildFileTrees)
-          if (!hasIndexHtml) {
-            log.warning("The front folder does not contain an 'index.html' file")
-            yield* Effect.sleep('2 seconds')
-          }
-
-          // TODO: keep file root to outside fileTree
-          // to keep index.html to the end
+          const { components: frontBuildFileComponentRests, indexHtml } =
+            yield* pickIndexHtml(frontBuildFileComponents).pipe(
+              Effect.catchTag(
+                'FileNotFoundError',
+                () =>
+                  new FrontError({
+                    message: "'index.html' file should exist in the front build folder",
+                    config: configContext.front,
+                  })
+              )
+            )
 
           yield* genTaskLogsUi({
-            title: 'Uploading files',
-            itemGroups: Array.from(frontBuildFileTrees),
+            title: 'Uploading common files',
+            itemGroups: Array.from(frontBuildFileComponentRests),
             processItem: frontService.uploadFrontFileToBucket,
             message: {
-              resolveGroupTitle: (fileComponent) => `Uploading '${fileComponent.name}'`,
+              resolveGroupTitle: (fileComponent) => `Uploading ${fileComponent.name}`,
               resolveGroupSuccess: (fileComponent, duration) =>
                 `${fileComponent.name}: ${fileComponent.length} files uploaded in ${Duration.toMillis(duration)}ms`,
-              resolveItem: (fileItem) => `File '${fileItem.relativePath}' uploaded`,
-              resolveSuccess: () => 'Files uploaded',
+              resolveGroupError: (fileComponent, error) =>
+                `Upload ${fileComponent.name} failed: ${error.message}`,
+              resolveItem: (fileItem) => `File ${fileItem.relativePath} uploaded`,
+              resolveSuccess: (duration) =>
+                `Common files uploaded in ${Duration.toMillis(duration)}ms`,
             },
             subTaskConcurrency: configContext.bucket.upload.concurrency,
+          })
+
+          yield* genLoaderUi({
+            process: () => frontService.uploadFrontFileToBucket(indexHtml),
+            message: {
+              resolveStart: () => 'Uploading index.html',
+              resolveError: (error) => `Upload index.html failed: ${error.message}`,
+              resolveCancel: () => 'Upload index.html canceled',
+              resolveEnd: (duration) =>
+                `Upload index.html finished in ${Duration.toMillis(duration)}ms`,
+            },
           })
         }),
       }

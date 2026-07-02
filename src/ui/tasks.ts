@@ -28,7 +28,8 @@ export const genTaskLogsUi = <
     resolveItem: (item: TItem) => string
     resolveGroupTitle: (group: TItemGroup) => string
     resolveGroupSuccess: (group: TItemGroup, duration: Duration.Duration) => string
-    resolveSuccess: () => string
+    resolveGroupError: (group: TItemGroup, error: Error) => string
+    resolveSuccess: (duration: Duration.Duration) => string
   }
   subTaskConcurrency: number
 }) => {
@@ -54,17 +55,27 @@ export const genTaskLogsUi = <
             yield* Effect.all(itemProcesses, {
               concurrency: subTaskConcurrency,
             })
-          })
+          }).pipe(
+            Effect.catchAll((error) =>
+              Effect.gen(function* () {
+                groupLog.error(message.resolveGroupError(group, error))
+
+                return yield* Effect.fail(error)
+              })
+            )
+          )
         )
 
         groupLog.success(message.resolveGroupSuccess(group, duration))
       })
     })
 
-    yield* Effect.all(tasks, {
-      concurrency: 'unbounded',
-    })
+    const [duration] = yield* Effect.timed(
+      Effect.all(tasks, {
+        concurrency: 'unbounded',
+      })
+    )
 
-    log.success(message.resolveSuccess())
+    log.success(message.resolveSuccess(duration))
   })
 }

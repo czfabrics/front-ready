@@ -2,7 +2,7 @@ import { FileObjectBucketContext } from '#contexts/file_object_bucket'
 import { FileRepositoryContext } from '#contexts/file_repository'
 import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { InternalConfigContext } from '#contexts/internal_config'
-import { FileError } from '#errors/interop/file'
+import { FileError } from '#errors/file'
 import { FileRepository } from '#file/repository'
 import { FileComponent, FileItem, FileTree } from '#file/types'
 import { FileObjectRepository } from '#file_object/repository'
@@ -49,12 +49,10 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
           return fileObjectRepository.doesBucketExist()
         },
         listFrontBuildFiles: () => {
-          return fileRepository.listFiles(configContext.bucket.upload.filesToTheEnd)
+          return fileRepository.listFiles()
         },
-        listFrontBuildFileTrees: genFn(function* () {
-          const files = yield* fileRepository.listFiles(
-            configContext.bucket.upload.filesToTheEnd
-          )
+        listFrontBuildFileByRootComponents: genFn(function* () {
+          const files = yield* fileRepository.listFiles()
 
           let map = HashMap.empty<string, FileComponent>()
 

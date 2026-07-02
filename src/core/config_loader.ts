@@ -104,7 +104,6 @@ const ConfigSchema = z.object({
     upload: z
       .object({
         concurrency: z.number().positive().default(50),
-        filesToTheEnd: z.array(z.string()).default(['index.html']),
       })
       .prefault({}),
   }),

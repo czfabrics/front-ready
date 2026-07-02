@@ -11,7 +11,7 @@ export class FileRepository extends Effect.Service<FileRepository>()('FileReposi
     const context = yield* FileRepositoryContext
 
     return {
-      listFiles: (relativePathsToTheEnd: string[]) =>
+      listFiles: () =>
         Effect.gen(function* () {
           const paths = yield* fs.readDirectory(context.cwd, {
             recursive: true,
@@ -25,17 +25,6 @@ export class FileRepository extends Effect.Service<FileRepository>()('FileReposi
                 .pipe(Effect.map((info) => info.type === 'File')),
             { concurrency: 'unbounded' }
           )
-
-          for (const pathToTheEnd of relativePathsToTheEnd) {
-            const index = filePaths.findIndex((path) => path === pathToTheEnd)
-
-            if (index < 0) {
-              continue
-            }
-
-            filePaths.splice(index, 1)
-            filePaths.push(pathToTheEnd)
-          }
 
           return yield* Effect.forEach(filePaths, (filePath) => {
             return FileItem.new({
