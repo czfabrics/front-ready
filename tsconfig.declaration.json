@@ -1,9 +1,10 @@
 {
   "extends": ["./tsconfig.json"],
+  "include": ["index.ts"],
   "compilerOptions": {
     "declaration": true,
     "declarationDir": ".dist",
     "emitDeclarationOnly": true,
-    "noEmitOnError": true
-  }
+    "noEmitOnError": true,
+  },
 }
