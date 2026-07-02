@@ -2,7 +2,7 @@ import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { InternalConfigContext } from '#contexts/internal_config'
 import { FrontFileObjectService } from '#front/service'
 import { genFn } from '#helpers/effect'
-import { hasMinOneFile } from '#helpers/file'
+import { hasIndexHtmlAtRoot, hasMinOneFile } from '#helpers/file'
 import { genCommandUi } from '#ui/command'
 import { genConfirmUi } from '#ui/confirm'
 import { genTaskLogsUi } from '#ui/tasks'
@@ -53,6 +53,12 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
             log.error('Front files should contain minimum one file')
 
             return yield* Effect.interrupt
+          }
+
+          const hasIndexHtml = hasIndexHtmlAtRoot(frontBuildFileTrees)
+          if (!hasIndexHtml) {
+            log.warning("The front folder does not contain an 'index.html' file")
+            yield* Effect.sleep('2 seconds')
           }
 
           // TODO: keep file root to outside fileTree

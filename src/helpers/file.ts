@@ -76,3 +76,17 @@ export const hasMinOneFile = function (components: IterableIterator<FileComponen
 
   return false
 }
+
+export const hasIndexHtmlAtRoot = function (components: IterableIterator<FileComponent>) {
+  for (const component of components) {
+    if (FileTree.is(component)) {
+      continue
+    }
+
+    if (component.relativePath === 'index.html') {
+      return true
+    }
+  }
+
+  return false
+}
