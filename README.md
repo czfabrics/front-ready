@@ -25,6 +25,8 @@
 	* [NPM](#npm)
 * [Quick Start](#quick-start)
 * [Usage](#usage)
+	* [Custom](#custom)
+	* [Angular](#angular)
 * [License](#license)
 
 [![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/dark.png)](#overview)
@@ -35,7 +37,10 @@ A framework-aware deployment tool for static frontends. It reads your project's 
 
 ### Key Features
 
-TODO
+- **S3 Bucket support**: Upload your frontend files to an S3 bucket.
+- **S3 Bucket host agnostic**: Choose the host you want (Amazon, OVH, etc.).
+- **Angular support**: It reads your `angular.json` to know how to build and which folder is the output build folder.
+- **Any Front support**: Adaptable to any frontend by using the `custom` config.
 
 
 [![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/dark.png)](#installation)
@@ -65,14 +70,128 @@ npm install @czfabrics/front-ready@0.1.0-beta.1
 
 ## Quick Start
 
-TODO
+**Config `frontready.config.ts`:**
+
+```ts
+import { Config } from '@czfabrics/front-ready'
+
+export default {
+  bucket: {
+    namePrefix: 'my-front-hosting',
+    params: {
+      region: 'eu-west-3',
+      apiVersion: '2006-03-01',
+      endpoint: 'https://s3.eu-west-3.amazonaws.com',
+      credentials: {
+        accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+        secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+      },
+    },
+  },
+  front: {
+    type: 'custom',
+    custom: {
+      build: {
+        command: 'npx ng build',
+        args: ['--configuration', 'production'],
+      },
+      environmentName: 'production',
+      buildOutputPath: './example',
+    },
+  },
+} satisfies Config
+```
+
+**Command:**
+
+```sh
+npx @czfabrics/front-ready create
+npx @czfabrics/front-ready deploy
+```
 
 
 [![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/dark.png)](#usage)
 
 ## Usage
 
-TODO
+### Custom
+
+**Config `frontready.config.ts`:**
+
+```ts
+import { Config } from '@czfabrics/front-ready'
+
+export default {
+  bucket: {
+    namePrefix: 'my-front-hosting',
+    params: {
+      region: 'eu-west-3',
+      apiVersion: '2006-03-01',
+      endpoint: 'https://s3.eu-west-3.amazonaws.com',
+      credentials: {
+        accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+        secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+      },
+    },
+  },
+  front: {
+    type: 'custom',
+    custom: {
+      build: {
+        command: 'npx ng build',
+        args: ['--configuration', 'production'],
+      },
+      environmentName: 'production',
+      buildOutputPath: './example',
+    },
+  },
+} satisfies Config
+```
+
+**Command:**
+
+```sh
+npx @czfabrics/front-ready create
+npx @czfabrics/front-ready deploy
+```
+
+### Angular
+
+**Config `frontready.config.ts`:**
+
+```ts
+import { Config } from '@czfabrics/front-ready'
+
+export default {
+  bucket: {
+    namePrefix: 'my-front-hosting',
+    params: {
+      region: 'eu-west-3',
+      apiVersion: '2006-03-01',
+      endpoint: 'https://s3.eu-west-3.amazonaws.com',
+      credentials: {
+        accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+        secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+      },
+    },
+  },
+  front: {
+    type: 'angular',
+    angular: {
+      angularJsonPath: './angular.json',
+      configurationName: 'production',
+      projectName: 'MyFront',
+    },
+  },
+} satisfies Config
+```
+
+**Command:**
+
+```sh
+npx @czfabrics/front-ready create
+npx @czfabrics/front-ready deploy
+```
 
 
 [![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/dark.png)](#license)
