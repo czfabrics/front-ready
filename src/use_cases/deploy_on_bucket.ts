@@ -3,7 +3,7 @@ import { InternalConfigContext } from '#contexts/internal_config'
 import { FrontError } from '#errors/front'
 import { FrontFileObjectService } from '#front/service'
 import { genFn } from '#helpers/effect'
-import { hasMinOneFile, pickIndexHtml } from '#helpers/file'
+import { hasMinOneFile, pickIndexDocument } from '#helpers/file'
 import { genCommandUi } from '#ui/command'
 import { genConfirmUi } from '#ui/confirm'
 import { genLoaderUi } from '#ui/loader'
@@ -58,13 +58,13 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
             return yield* Effect.interrupt
           }
 
-          const { components: frontBuildFileComponentRests, indexHtml } =
-            yield* pickIndexHtml(frontBuildFileComponents).pipe(
+          const { components: frontBuildFileComponentRests, indexDocument } =
+            yield* pickIndexDocument(frontBuildFileComponents).pipe(
               Effect.catchTag(
                 'FileNotFoundError',
                 () =>
                   new FrontError({
-                    message: "'index.html' file should exist in the front build folder",
+                    message: `'${configContext.bucket.front.indexDocumentSuffix}' file should exist in the front build folder`,
                     config: configContext.front,
                   })
               )
@@ -88,13 +88,15 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
           })
 
           yield* genLoaderUi({
-            process: () => frontService.uploadFrontFileToBucket(indexHtml),
+            process: () => frontService.uploadFrontFileToBucket(indexDocument),
             message: {
-              resolveStart: () => 'Uploading index.html',
-              resolveError: (error) => `Upload index.html failed: ${error.message}`,
-              resolveCancel: () => 'Upload index.html canceled',
+              resolveStart: () => `Uploading index document '${indexDocument.name}'`,
+              resolveError: (error) =>
+                `Upload index document '${indexDocument.name}' failed: ${error.message}`,
+              resolveCancel: () =>
+                `Upload index document '${indexDocument.name}' canceled`,
               resolveEnd: (duration) =>
-                `Upload index.html finished in ${Duration.toMillis(duration)}ms`,
+                `Upload index document '${indexDocument.name}' finished in ${Duration.toMillis(duration)}ms`,
             },
           })
         }),

@@ -3,7 +3,7 @@ import { FileObjectWrapperError } from '#errors/interop/file_object_wrapper'
 import { FileTypeWrapperError } from '#errors/interop/file_type_wrapper'
 import { taskLog } from '@clack/prompts'
 import { PlatformError } from '@effect/platform/Error'
-import { Duration, Effect } from 'effect'
+import { Duration, Effect, Stream } from 'effect'
 
 export const genTaskLogsUi = <
   TItemGroup extends IteratorImpl<any>,
@@ -16,7 +16,7 @@ export const genTaskLogsUi = <
   subTaskConcurrency,
 }: {
   title: string
-  itemGroups: TItemGroup[]
+  itemGroups: Iterable<TItemGroup>
   processItem: (
     item: TItem
   ) => Effect.Effect<
@@ -39,27 +39,24 @@ export const genTaskLogsUi = <
       retainLog: false,
     })
 
-    const tasks = Array.from(itemGroups).map((group) => {
-      return Effect.gen(function* () {
+    const processGroup = (group: TItemGroup) =>
+      Effect.gen(function* () {
         const groupLog = log.group(message.resolveGroupTitle(group))
 
         const [duration] = yield* Effect.timed(
-          Effect.gen(function* () {
-            const itemProcesses = Array.from(group).map((item) =>
-              Effect.gen(function* () {
-                yield* processItem(item)
-                groupLog.message(message.resolveItem(item))
-              })
-            )
-
-            yield* Effect.all(itemProcesses, {
-              concurrency: subTaskConcurrency,
-            })
-          }).pipe(
+          Stream.fromIterable(group as Iterable<TItem>).pipe(
+            Stream.mapEffect(
+              (item) =>
+                Effect.gen(function* () {
+                  yield* processItem(item)
+                  groupLog.message(message.resolveItem(item))
+                }),
+              { concurrency: subTaskConcurrency }
+            ),
+            Stream.runDrain,
             Effect.catchAll((error) =>
               Effect.gen(function* () {
                 groupLog.error(message.resolveGroupError(group, error))
-
                 return yield* Effect.fail(error)
               })
             )
@@ -68,12 +65,12 @@ export const genTaskLogsUi = <
 
         groupLog.success(message.resolveGroupSuccess(group, duration))
       })
-    })
 
     const [duration] = yield* Effect.timed(
-      Effect.all(tasks, {
-        concurrency: 'unbounded',
-      })
+      Stream.fromIterable(itemGroups).pipe(
+        Stream.mapEffect(processGroup, { concurrency: 'unbounded' }),
+        Stream.runDrain
+      )
     )
 
     log.success(message.resolveSuccess(duration))

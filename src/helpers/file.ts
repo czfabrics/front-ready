@@ -1,9 +1,10 @@
+import { InternalConfigContext } from '#contexts/internal_config'
 import { FileNotFoundError } from '#errors/file'
 import { FileComponent, FileItem, FileTree } from '#file/types'
 import { FileObject } from '#file_object/repository'
 import { genFn } from '#helpers/effect'
 import { Path } from '@effect/platform'
-import { Array, Effect, Option } from 'effect'
+import { Effect, Array as EffectArray, Equal, Option, Stream } from 'effect'
 
 export const fileIntoObject = function (file: FileItem) {
   return Effect.gen(function* () {
@@ -55,7 +56,7 @@ export const extractFirstFolderFromPath = function (relativePath: string) {
       return Option.none()
     }
 
-    return Array.head(segments)
+    return EffectArray.head(segments)
   })
 }
 
@@ -71,7 +72,7 @@ export const extractRootFileTree = genFn(function* (file: FileItem, cwd: string)
   )
 })
 
-export const hasMinOneFile = function (components: IterableIterator<FileComponent>) {
+export const hasMinOneFile = function (components: Iterable<FileComponent>) {
   for (const component of components) {
     if (component.length > 0) {
       return true
@@ -81,44 +82,73 @@ export const hasMinOneFile = function (components: IterableIterator<FileComponen
   return false
 }
 
-export const excludeRootFile = function (
-  components: IterableIterator<FileComponent>,
-  filenameToExclude: string
-): Effect.Effect<IterableIterator<FileComponent>> {
-  return Effect.sync(function* () {
-    for (const component of components) {
-      if (!FileTree.is(component) && component.name === filenameToExclude) {
-        continue
-      }
-
+const walkFiles = function* (components: Iterable<FileComponent>): Generator<FileItem> {
+  for (const component of components) {
+    if (FileTree.is(component)) {
+      yield* component.items
+    } else {
       yield component
     }
-  })
+  }
 }
 
-export const extractRootFile = genFn(function* (
-  components: IterableIterator<FileComponent>,
-  filenameToPick: string
+export const extractFile = genFn(function* (
+  components: Iterable<FileComponent>,
+  pathSuffix: string
 ) {
-  for (const component of components) {
-    if (!FileTree.is(component) && component.name === filenameToPick) {
-      return component
+  for (const file of walkFiles(components)) {
+    if (file.relativePath.endsWith(pathSuffix)) {
+      return file
     }
   }
 
   return yield* Effect.fail(
-    new FileNotFoundError({ message: `File not found`, file: { name: filenameToPick } })
+    new FileNotFoundError({
+      message: `File not found`,
+      file: { relativePath: `${pathSuffix}$` },
+    })
   )
 })
 
-export const pickIndexHtml = genFn(function* (
-  components: IterableIterator<FileComponent>
-) {
-  const alteredComponents = yield* excludeRootFile(components, 'index.html')
-  const indexHtml = yield* extractRootFile(components, 'index.html')
+export const excludeFiles = function (
+  components: Iterable<FileComponent>,
+  shouldExclude: (file: FileItem) => boolean
+): Stream.Stream<FileComponent, never, Path.Path> {
+  return Stream.fromIterable(components).pipe(
+    Stream.filter((component) =>
+      FileTree.is(component) ? true : !shouldExclude(component)
+    ),
+    Stream.mapEffect((component) => {
+      if (FileTree.is(component)) {
+        const keptItems = component.items.filter((item) => !shouldExclude(item))
+
+        if (keptItems.length !== component.items.length) {
+          return component.update(keptItems)
+        }
+      }
+
+      return Effect.succeed(component)
+    })
+  )
+}
+
+export const pickIndexDocument = genFn(function* (components: Iterable<FileComponent>) {
+  const config = yield* InternalConfigContext
+
+  const indexDocument = yield* extractFile(
+    components,
+    config.bucket.front.indexDocumentSuffix
+  )
+
+  const alteredComponents = yield* Stream.runCollect(
+    excludeFiles(components, (file) => Equal.equals(file, indexDocument))
+  )
 
   return {
     components: alteredComponents,
-    indexHtml,
+    indexDocument,
+  } satisfies {
+    components: Iterable<FileComponent>
+    indexDocument: FileItem
   }
 })

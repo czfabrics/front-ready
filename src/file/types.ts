@@ -7,7 +7,15 @@ import { FileSystem } from '@effect/platform/FileSystem'
 import { Effect, Equal, Hash } from 'effect'
 import { lookup } from 'mrmime'
 
-export interface FileItem extends IteratorImpl<FileItem> {
+const FileItemTypeId: unique symbol = Symbol.for('FileItem')
+type FileItemTypeId = typeof FileItemTypeId
+
+const isFileItem = function (thing: unknown): thing is FileItem {
+  return typeof thing === 'object' && thing !== null && FileItemTypeId in thing
+}
+
+export interface FileItem extends IteratorImpl<FileItem>, Equal.Equal {
+  readonly [FileItemTypeId]: FileItemTypeId
   readonly name: string
   readonly extension: string
   readonly relativePath: string
@@ -30,6 +38,7 @@ export const FileItem = {
       const content = fs.readFile(absolutePath)
 
       return {
+        [FileItemTypeId]: FileItemTypeId,
         name,
         extension,
         relativePath: data.relativePath,
@@ -63,8 +72,17 @@ export const FileItem = {
             },
           }
         },
+        [Equal.symbol](that: Equal.Equal): boolean {
+          return isFileItem(that) && this.absolutePath === that.absolutePath
+        },
+        [Hash.symbol](): number {
+          return Hash.string(this.absolutePath)
+        },
       } satisfies FileItem
     })
+  },
+  is: function (thing: unknown): thing is FileItem {
+    return isFileItem(thing)
   },
 }
 
@@ -84,6 +102,10 @@ export interface FileTree extends IteratorImpl<FileItem>, Equal.Equal {
   readonly items: FileItem[]
   readonly length: number
   readonly append: (
+    this: FileTree,
+    addedItems: FileItem[]
+  ) => Effect.Effect<FileTree, never, Path.Path>
+  readonly update: (
     this: FileTree,
     newItems: FileItem[]
   ) => Effect.Effect<FileTree, never, Path.Path>
@@ -105,11 +127,19 @@ export const FileTree = {
           return this.items.length
         },
         append: function (
+          addedItems: FileItem[]
+        ): Effect.Effect<FileTree, never, Path.Path> {
+          return FileTree.new({
+            ...this,
+            items: [...this.items, ...addedItems],
+          })
+        },
+        update: function (
           newItems: FileItem[]
         ): Effect.Effect<FileTree, never, Path.Path> {
           return FileTree.new({
             ...this,
-            items: [...this.items, ...newItems],
+            items: newItems,
           })
         },
         [Symbol.iterator](): Iterator<FileItem> {
