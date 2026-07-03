@@ -67,6 +67,7 @@
     "aws",
     "aws-s3",
     "bucket",
+    "front",
     "frontend",
     "static-site",
     "static-hosting",
@@ -75,7 +76,8 @@
     "angular",
     "ci-cd",
     "upload",
-    "typescript"
+    "typescript",
+    "ready"
   ],
   "license": "MIT",
   "scripts": {
