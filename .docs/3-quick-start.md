@@ -1,6 +1,8 @@
 ## Quick Start
 
-**Config `frontready.config.ts`:**
+### Configuration
+
+Create a `frontready.config.ts` file at the root of your project:
 
 ```ts
 import { Config } from '{{ pkg.name }}'
@@ -32,9 +34,18 @@ export default {
 } satisfies Config
 ```
 
-**Command:**
+> **Tip:** Don't commit real credentials. Load `accessKeyId` and `secretAccessKey` from environment variables instead.
+
+### Commands
+
+**1. Create the bucket**
 
 ```sh
-npx {{ pkg.name }} create
+npx {{ pkg.name }} <create-command>
+```
+
+**2. Build and deploy your frontend**
+
+```sh
 npx {{ pkg.name }} deploy
 ```

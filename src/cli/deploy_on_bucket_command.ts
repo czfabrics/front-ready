@@ -10,7 +10,8 @@ import { Effect, Inspectable, Layer } from 'effect'
 
 export const deployOnBucketCommand = command({
   name: 'deploy',
-  description: 'TODO',
+  description:
+    "Builds your frontend using the configuration above, then uploads the output to the bucket. The file matching `indexDocumentSuffix` (default: `index.html`) is uploaded **last** — so the new entry point only becomes available once all the hashed chunks it references are already in place, avoiding a window where clients load an `index.html` pointing at chunks that haven't been uploaded yet.",
   args: {},
   handler: function () {
     const CommandContextLayer = Layer.succeed(CliCommandContext, {

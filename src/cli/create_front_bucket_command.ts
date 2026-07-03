@@ -10,7 +10,8 @@ import { Effect, Inspectable, Layer } from 'effect'
 
 export const createFrontBucketCommand = command({
   name: 'create',
-  description: 'TODO',
+  description:
+    'Creates the bucket and prepares it for static hosting: sets `BucketOwnerEnforced` object ownership, makes the bucket publicly readable, and adds the static website configuration.',
   args: {},
   handler: function () {
     const CommandContextLayer = Layer.succeed(CliCommandContext, {
