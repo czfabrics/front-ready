@@ -41,7 +41,7 @@ export default {
 **1. Create the bucket**
 
 ```sh
-npx {{ pkg.name }} <create-command>
+npx {{ pkg.name }} create
 ```
 
 **2. Build and deploy your frontend**
