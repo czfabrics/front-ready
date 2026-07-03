@@ -1,5 +1,5 @@
 import { FileObjectBucketContext } from '#contexts/file_object_bucket'
-import { FileObjectWrapperError } from '#errors/interop/file_object_wrapper'
+import { FileObjectError } from '#errors/file_object'
 import {
   FileObjectApiInstance,
   FileObjectApiInstanceLive,
@@ -7,7 +7,9 @@ import {
 import { genFn, toEffect } from '#helpers/effect'
 import {
   CreateBucketCommand,
+  GetObjectCommand,
   HeadBucketCommand,
+  ListObjectsV2Command,
   PutBucketAclCommand,
   PutBucketWebsiteCommand,
   PutObjectCommand,
@@ -38,7 +40,11 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             ObjectOwnership: 'BucketOwnerEnforced',
           })
 
-          yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
+          yield* toEffect(apiInstance.send(command), FileObjectError, {
+            context,
+            command,
+            file: {},
+          })
         }),
         doesBucketExist: genFn(function* () {
           const command = new HeadBucketCommand({
@@ -46,15 +52,13 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
           })
 
           const doesExist = yield* Effect.matchEffect(
-            toEffect(apiInstance.send(command), FileObjectWrapperError, {}),
+            toEffect(apiInstance.send(command), FileObjectError, {
+              context,
+              command,
+              file: {},
+            }),
             {
-              onFailure: (error) => {
-                if (error.cause.name === 'NotFound') {
-                  return Effect.succeed(false)
-                }
-
-                return Effect.fail(error)
-              },
+              onFailure: () => Effect.succeed(false),
               onSuccess: () => Effect.succeed(true),
             }
           )
@@ -67,7 +71,11 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             ACL: 'public-read',
           })
 
-          yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
+          yield* toEffect(apiInstance.send(command), FileObjectError, {
+            context,
+            command,
+            file: {},
+          })
         }),
         setWebsiteConfigurationOnBucket: genFn(function* (
           indexFileKeySuffix: string,
@@ -85,7 +93,11 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             },
           })
 
-          yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
+          yield* toEffect(apiInstance.send(command), FileObjectError, {
+            context,
+            command,
+            file: {},
+          })
         }),
         putObject: genFn(function* (file: FileObject) {
           const command = new PutObjectCommand({
@@ -98,7 +110,69 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             CacheControl: file.cacheControlValue,
           })
 
-          yield* toEffect(apiInstance.send(command), FileObjectWrapperError, {})
+          yield* toEffect(apiInstance.send(command), FileObjectError, {
+            context,
+            command,
+            file,
+          })
+        }),
+        readObject: genFn(function* (objectKey: string) {
+          const command = new GetObjectCommand({
+            Bucket: context.bucketName,
+            Key: objectKey,
+          })
+
+          const result = yield* toEffect(apiInstance.send(command), FileObjectError, {
+            context,
+            command,
+            file: { key: objectKey },
+          })
+
+          if (result.Body === undefined) {
+            return yield* Effect.fail(
+              new FileObjectError({
+                message: 'Bucket returns undefined response',
+                context,
+                command,
+                file: { key: objectKey },
+              })
+            )
+          }
+
+          return yield* toEffect(result.Body.transformToByteArray(), FileObjectError, {
+            context,
+            command,
+            file: { key: objectKey },
+          })
+        }),
+        countObjects: genFn(function* () {
+          const finalState = yield* Effect.iterate(
+            { count: 0, token: undefined as string | undefined, done: false },
+            {
+              while: (state) => !state.done,
+              body: (state) =>
+                genFn(function* () {
+                  const command = new ListObjectsV2Command({
+                    Bucket: context.bucketName,
+                    ContinuationToken: state.token,
+                  })
+
+                  const result = yield* toEffect(
+                    apiInstance.send(command),
+                    FileObjectError,
+                    { context, command, file: {} }
+                  )
+
+                  return {
+                    count: state.count + (result.KeyCount ?? 0),
+                    token: result.NextContinuationToken,
+                    done: result.IsTruncated !== true,
+                  }
+                })(),
+            }
+          )
+
+          return finalState.count
         }),
       }
     }),

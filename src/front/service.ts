@@ -109,6 +109,11 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
 
           yield* fileObjectRepository.putObject(object)
         }),
+        isAlreadyDeployed: genFn(function* () {
+          const count = yield* fileObjectRepository.countObjects()
+
+          return count > 0
+        }),
       }
     }),
     dependencies: [

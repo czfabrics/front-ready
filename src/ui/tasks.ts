@@ -1,13 +1,11 @@
 import { IterableElement, IteratorImpl } from '#core/types'
-import { FileObjectWrapperError } from '#errors/interop/file_object_wrapper'
-import { FileTypeWrapperError } from '#errors/interop/file_type_wrapper'
 import { taskLog } from '@clack/prompts'
-import { PlatformError } from '@effect/platform/Error'
 import { Duration, Effect, Stream } from 'effect'
 
 export const genTaskLogsUi = <
   TItemGroup extends IteratorImpl<any>,
   TItem extends IterableElement<TItemGroup>,
+  TProcessError,
 >({
   title,
   itemGroups,
@@ -17,18 +15,12 @@ export const genTaskLogsUi = <
 }: {
   title: string
   itemGroups: Iterable<TItemGroup>
-  processItem: (
-    item: TItem
-  ) => Effect.Effect<
-    void,
-    PlatformError | FileTypeWrapperError | FileObjectWrapperError,
-    never
-  >
+  processItem: (item: TItem) => Effect.Effect<void, TProcessError, never>
   message: {
     resolveItem: (item: TItem) => string
     resolveGroupTitle: (group: TItemGroup) => string
     resolveGroupSuccess: (group: TItemGroup, duration: Duration.Duration) => string
-    resolveGroupError: (group: TItemGroup, error: Error) => string
+    resolveGroupError: (group: TItemGroup, error: TProcessError) => string
     resolveSuccess: (duration: Duration.Duration) => string
   }
   subTaskConcurrency: number

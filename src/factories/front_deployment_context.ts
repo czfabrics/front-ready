@@ -1,10 +1,9 @@
 import { InternalConfig } from '#config/schema'
 import { FrontDeploymentContext } from '#contexts/front_deployment'
-import { TUiWrapperError } from '#errors/interop/tui_wrapper'
 import { makeDeploymentBucketName } from '#factories/bucket_name'
-import { resolveAngularConfigurations } from '#helpers/angular'
-import { toEffect } from '#helpers/effect'
-import { log, select } from '@clack/prompts'
+import { getAngularConfigurations, resolveAngularConfiguration } from '#helpers/angular'
+import { genSelectUi } from '#ui/select'
+import { log } from '@clack/prompts'
 import { Command } from '@effect/platform'
 import { Effect, Layer, Match } from 'effect'
 
@@ -14,50 +13,42 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
     Match.value(rootConfig.front).pipe(
       Match.when({ type: 'angular' }, (config) =>
         Effect.gen(function* () {
-          const { configurations, outputPath } = yield* resolveAngularConfigurations(
-            config.angular.angularJsonPath,
-            config.angular.projectName
-          )
+          if (!config.angular.configurationName) {
+            log.warning('Angular configuration name not found in configuration')
+            log.message(
+              `Reading '${config.angular.angularJsonPath}' file to get available configurations`
+            )
 
-          if (config.angular.configurationName) {
-            return {
-              command: Command.make('ng', 'build', config.angular.configurationName),
-              bucketName: makeDeploymentBucketName(
-                rootConfig,
-                config.angular.configurationName
-              ),
-              buildOutputPath: outputPath,
-            }
-          }
+            const configurations = yield* getAngularConfigurations(
+              config.angular.angularJsonPath
+            )
+            const options = configurations.map((name) => ({
+              value: name,
+              label: name,
+            }))
 
-          log.warning('Angular configuration name not found in configuration')
-          log.message(
-            `Reading '${config.angular.angularJsonPath}' file to get available configurations`
-          )
-
-          const options = configurations.map((name) => ({
-            value: name,
-            label: name,
-          }))
-
-          const configurationName = yield* toEffect(
-            select({
+            const configurationName = yield* genSelectUi({
               message: 'Pick an Angular configuration.',
               options: options,
-            }),
-            TUiWrapperError,
-            {
-              uiFunction: 'select',
-            }
+            })
+
+            config.angular.configurationName = configurationName.toString()
+          }
+
+          const { outputPath, outputHashing } = yield* resolveAngularConfiguration(
+            config.angular.angularJsonPath,
+            config.angular.projectName,
+            config.angular.configurationName
           )
 
           return {
-            command: Command.make('ng', 'build', configurationName.toString()),
+            command: Command.make('ng', 'build', config.angular.configurationName),
             bucketName: makeDeploymentBucketName(
               rootConfig,
-              configurationName.toString()
+              config.angular.configurationName
             ),
             buildOutputPath: outputPath,
+            buildOutputHashing: outputHashing,
           }
         })
       ),
@@ -73,6 +64,7 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
               config.custom.environmentName
             ),
             buildOutputPath: config.custom.buildOutputPath,
+            buildOutputHashing: undefined,
           }
         })
       ),
