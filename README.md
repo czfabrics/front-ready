@@ -57,19 +57,19 @@ A framework-aware deployment tool for static frontends. It reads your project's 
 ### Bun
 
 ```sh
-bun add @czfabrics/front-ready@0.1.0-beta.3
+bun add @czfabrics/front-ready@0.1.0-beta.4
 ```
 
 ### Yarn
 
 ```sh
-yarn add @czfabrics/front-ready@0.1.0-beta.3
+yarn add @czfabrics/front-ready@0.1.0-beta.4
 ```
 
 ### NPM
 
 ```sh
-npm install @czfabrics/front-ready@0.1.0-beta.3
+npm install @czfabrics/front-ready@0.1.0-beta.4
 ```
 
 
@@ -118,7 +118,7 @@ export default {
 **1. Create the bucket**
 
 ```sh
-npx @czfabrics/front-ready <create-command>
+npx @czfabrics/front-ready create
 ```
 
 **2. Build and deploy your frontend**
