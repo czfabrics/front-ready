@@ -47,7 +47,9 @@
       "require": "./.dist/index.cjs"
     }
   },
-  "bin": "./.dist/main.mjs",
+  "bin": {
+    "front-ready": ".dist/main.mjs"
+  },
   "bugs": {
     "url": "https://github.com/czfabrics/front-ready/issues"
   },
