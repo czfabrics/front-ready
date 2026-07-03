@@ -103,7 +103,8 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
         uploadFrontFileToBucket: genFn(function* (file: FileItem) {
           const object = detectAndFillCacheControl(
             yield* fileIntoObject(file),
-            configContext.bucket.front.cacheControlMapping
+            configContext.bucket.front.cacheControlMapping,
+            configContext.bucket.front.defaultCacheControlValue
           )
 
           yield* fileObjectRepository.putObject(object)

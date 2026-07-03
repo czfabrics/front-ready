@@ -78,6 +78,9 @@ export const ConfigSchema = z.object({
     }),
     front: z
       .object({
+        defaultCacheControlValue: CacheControlSchema.default(
+          'max-age=60, stale-while-revalidate=600, stale-if-error=86400'
+        ),
         cacheControlMapping: z
           .record(
             z.templateLiteral([z.literal('^'), z.string(), z.literal('$')]),

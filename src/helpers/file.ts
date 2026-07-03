@@ -21,7 +21,8 @@ export const fileIntoObject = function (file: FileItem) {
 
 export const detectAndFillCacheControl = function (
   object: FileObject,
-  cacheControlMapping: Record<string, string>
+  cacheControlMapping: Record<string, string>,
+  defaultCacheControlValue: string
 ): FileObject {
   for (const [keyRawRegExp, cacheControlValue] of Object.entries(cacheControlMapping)) {
     const isCorrectCacheControl = new RegExp(keyRawRegExp).test(object.key)
@@ -34,7 +35,10 @@ export const detectAndFillCacheControl = function (
     }
   }
 
-  return object
+  return {
+    ...object,
+    cacheControlValue: defaultCacheControlValue,
+  }
 }
 
 export const extractFirstFolderFromPath = function (relativePath: string) {
