@@ -60,8 +60,8 @@ export default {
     type: 'angular',
     angular: {
       angularJsonPath: './angular.json',
-      configurationName: 'production',
       projectName: 'MyFront',
+      configurationName: 'production',
     },
   },
 } satisfies Config
@@ -116,7 +116,7 @@ npx {{ pkg.name }} create       # npm
 
 ### Check
 
-Verifies that your build produces randomly named (content-hashed) chunk files, which the default cache configuration relies on. This is the only thing it checks for now.
+Verifies that your build produces randomly named (content-hashed) chunk files, which the default cache configuration relies on. Also checks that the configured bucket exists and that it contains at least one object.
 
 ```sh
 bunx {{ pkg.name }} check      # Bun
