@@ -39,14 +39,39 @@ const isStaticOutput = (output?: string): boolean => (output ?? 'static') === 's
 /**
  * Astro resolves `outDir` against the project `root`, so a config that moves the
  * root also moves the build output. Left untouched when no root is declared, to
- * keep the path exactly as the user wrote it.
+ * keep the path exactly as the user wrote it — a relative `outDir` therefore stays
+ * relative to the cwd, which is what Astro does too.
+ *
+ * An absolute `outDir` ignores the root entirely: `path.join` would otherwise strip
+ * the leading separator and graft `/var/tmp/out` onto the root as
+ * `<root>/var/tmp/out`.
  */
 const resolveAgainstRoot = function (
   path: Path.Path,
   root: string | undefined,
   outDir: string
 ): string {
-  return root === undefined ? outDir : path.join(root, outDir)
+  if (root === undefined || path.isAbsolute(outDir)) {
+    return outDir
+  }
+
+  return path.join(root, outDir)
+}
+
+/**
+ * `build.client` is resolved against `outDir` for the same reason, with the same
+ * absolute-path escape hatch.
+ */
+const resolveAgainstOutDir = function (
+  path: Path.Path,
+  outDir: string,
+  clientDir: string
+): string {
+  if (path.isAbsolute(clientDir)) {
+    return clientDir
+  }
+
+  return path.join(outDir, clientDir)
 }
 
 export const resolveAstroConfiguration = genFn(function* (astroConfigPath?: string) {
@@ -80,7 +105,11 @@ export const resolveAstroConfiguration = genFn(function* (astroConfigPath?: stri
 
   const outputPath = isStaticOutput(parsedConfig.data.output)
     ? outDir
-    : path.join(outDir, parsedConfig.data.build?.client ?? ASTRO_DEFAULT_CLIENT_DIR)
+    : resolveAgainstOutDir(
+        path,
+        outDir,
+        parsedConfig.data.build?.client ?? ASTRO_DEFAULT_CLIENT_DIR
+      )
 
   return {
     outputPath,

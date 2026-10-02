@@ -105,6 +105,48 @@ describe('resolveAstroConfiguration', () => {
       })
     })
 
+    // `path.join` ignores absoluteness, so a rooted config used to answer
+    // `<root>/var/tmp/build-out` for an outDir Astro would read as `/var/tmp/build-out`.
+    it('keeps an absolute outDir instead of grafting it onto the root', async () => {
+      writeAstroConfig(
+        "export default { root: './frontend', outDir: '/var/tmp/build-out' }"
+      )
+
+      await expect(resolve()).resolves.toMatchObject({
+        outputPath: '/var/tmp/build-out',
+      })
+    })
+
+    it('keeps an absolute build.client instead of nesting it under outDir', async () => {
+      writeAstroConfig(
+        "export default { output: 'server', outDir: './out', build: { client: '/var/tmp/client-out' } }"
+      )
+
+      await expect(resolve()).resolves.toMatchObject({
+        outputPath: '/var/tmp/client-out',
+      })
+    })
+
+    it('keeps an absolute build.client even when outDir is itself absolute', async () => {
+      writeAstroConfig(
+        "export default { root: './frontend', output: 'server', outDir: '/var/tmp/build-out', build: { client: '/var/tmp/client-out' } }"
+      )
+
+      await expect(resolve()).resolves.toMatchObject({
+        outputPath: '/var/tmp/client-out',
+      })
+    })
+
+    it('resolves a relative build.client against an absolute outDir', async () => {
+      writeAstroConfig(
+        "export default { output: 'server', outDir: '/var/tmp/build-out' }"
+      )
+
+      await expect(resolve()).resolves.toMatchObject({
+        outputPath: join('/var/tmp/build-out', 'client'),
+      })
+    })
+
     it('treats an unknown output value as non-static', async () => {
       writeAstroConfig("export default { output: 'hybrid' }")
 
