@@ -86,8 +86,9 @@ a target carrying extra builder options is fine.
 ### Astro front
 
 Use `type: 'astro'` to let `frontready` read your build settings straight from `astro.config.*`. It
-resolves the output directory from `outDir` (default `./dist`), falling back to `build.client`
-inside it when `output` isn't `'static'` — so you don't repeat the path in two places.
+resolves the output directory from `outDir` (default `./dist`), resolved against `root` the way
+Astro itself does, falling back to `build.client` inside it when `output` isn't `'static'` — so you
+don't repeat the path in two places.
 
 `mode` is the Astro ([Vite](https://vite.dev/guide/env-and-mode)) mode: it is passed to the build as
 `astro build --mode <mode>` and names the bucket, the way `configurationName` does for Angular.
@@ -139,6 +140,7 @@ added in Astro 5.0 — on Astro 4 and earlier the build fails on the unknown fla
 | Config option                   | Astro                                             |
 | ------------------------------- | ------------------------------------------------- |
 | `outDir`                        | all supported versions                            |
+| `root`                          | all supported versions                            |
 | `output: 'static'` / `'server'` | all supported versions                            |
 | `build.client`                  | all supported versions                            |
 | `output: 'hybrid'`              | removed in Astro 5; still read as a server output |

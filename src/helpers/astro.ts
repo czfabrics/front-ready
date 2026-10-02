@@ -18,6 +18,7 @@ const ASTRO_DEFAULT_CLIENT_DIR = './client'
 // `output` is kept as a loose string rather than an enum so a future Astro value
 // ('static' | 'server', plus the legacy 'hybrid') never hard-fails the parse.
 const AstroConfigSchema = z.object({
+  root: z.string().optional(),
   outDir: z.string().optional(),
   output: z.string().optional(),
   build: z
@@ -34,6 +35,19 @@ type AstroConfig = z.infer<typeof AstroConfigSchema>
  * output, the browser assets land in `build.client`, resolved against `outDir`.
  */
 const isStaticOutput = (output?: string): boolean => (output ?? 'static') === 'static'
+
+/**
+ * Astro resolves `outDir` against the project `root`, so a config that moves the
+ * root also moves the build output. Left untouched when no root is declared, to
+ * keep the path exactly as the user wrote it.
+ */
+const resolveAgainstRoot = function (
+  path: Path.Path,
+  root: string | undefined,
+  outDir: string
+): string {
+  return root === undefined ? outDir : path.join(root, outDir)
+}
 
 export const resolveAstroConfiguration = genFn(function* (astroConfigPath?: string) {
   const path = yield* Path.Path
@@ -58,7 +72,11 @@ export const resolveAstroConfiguration = genFn(function* (astroConfigPath?: stri
     )
   }
 
-  const outDir = parsedConfig.data.outDir ?? ASTRO_DEFAULT_OUT_DIR
+  const outDir = resolveAgainstRoot(
+    path,
+    parsedConfig.data.root,
+    parsedConfig.data.outDir ?? ASTRO_DEFAULT_OUT_DIR
+  )
 
   const outputPath = isStaticOutput(parsedConfig.data.output)
     ? outDir

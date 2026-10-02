@@ -81,6 +81,30 @@ describe('resolveAstroConfiguration', () => {
       })
     })
 
+    it('resolves outDir against an explicit root', async () => {
+      writeAstroConfig("export default { root: './frontend' }")
+
+      await expect(resolve()).resolves.toMatchObject({
+        outputPath: join('frontend', 'dist'),
+      })
+    })
+
+    it('resolves an explicit outDir against an explicit root', async () => {
+      writeAstroConfig("export default { root: './frontend', outDir: './build' }")
+
+      await expect(resolve()).resolves.toMatchObject({
+        outputPath: join('frontend', 'build'),
+      })
+    })
+
+    it('resolves the client folder inside a rooted outDir for a server output', async () => {
+      writeAstroConfig("export default { root: './frontend', output: 'server' }")
+
+      await expect(resolve()).resolves.toMatchObject({
+        outputPath: join('frontend', 'dist', 'client'),
+      })
+    })
+
     it('treats an unknown output value as non-static', async () => {
       writeAstroConfig("export default { output: 'hybrid' }")
 
