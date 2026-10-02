@@ -8,38 +8,37 @@ import { log } from '@clack/prompts'
 import { Command } from '@effect/platform'
 import { Effect, Layer, Match } from 'effect'
 
+const promptAngularConfigurationName = function (angularJsonPath: string) {
+  return Effect.gen(function* () {
+    log.warning('Angular configuration name not found in configuration')
+    log.message(`Reading '${angularJsonPath}' file to get available configurations`)
+
+    const configurations = yield* getAngularConfigurations(angularJsonPath)
+
+    return yield* genSelectUi({
+      message: 'Pick an Angular configuration.',
+      options: configurations.map((name) => ({ value: name, label: name })),
+    })
+  })
+}
+
 export const makeFrontDeploymentContextLayer = function (rootConfig: InternalConfig) {
   return Layer.effect(
     FrontDeploymentContext,
     Match.value(rootConfig.front).pipe(
       Match.when({ type: 'angular' }, (config) =>
         Effect.gen(function* () {
-          if (!config.angular.configurationName) {
-            log.warning('Angular configuration name not found in configuration')
-            log.message(
-              `Reading '${config.angular.angularJsonPath}' file to get available configurations`
-            )
-
-            const configurations = yield* getAngularConfigurations(
-              config.angular.angularJsonPath
-            )
-            const options = configurations.map((name) => ({
-              value: name,
-              label: name,
-            }))
-
-            const configurationName = yield* genSelectUi({
-              message: 'Pick an Angular configuration.',
-              options: options,
-            })
-
-            config.angular.configurationName = configurationName.toString()
-          }
+          // Resolved into a local rather than written back onto `config`: the parsed
+          // config is shared through `InternalConfigContext`, and must keep saying
+          // what was actually validated.
+          const configurationName =
+            config.angular.configurationName ??
+            (yield* promptAngularConfigurationName(config.angular.angularJsonPath))
 
           const { outputPath, outputHashing } = yield* resolveAngularConfiguration(
             config.angular.angularJsonPath,
             config.angular.projectName,
-            config.angular.configurationName
+            configurationName
           )
 
           return {
@@ -50,12 +49,9 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
               'build',
               config.angular.projectName,
               '--configuration',
-              config.angular.configurationName
+              configurationName
             ),
-            bucketName: makeDeploymentBucketName(
-              rootConfig,
-              config.angular.configurationName
-            ),
+            bucketName: makeDeploymentBucketName(rootConfig, configurationName),
             buildOutputPath: outputPath,
             buildOutputHashing: outputHashing,
           }
