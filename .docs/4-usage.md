@@ -148,7 +148,7 @@ added in Astro 5.0 — on Astro 4 and earlier the build fails on the unknown fla
 Options `frontready` doesn't need — `site`, `integrations`, `vite`, and the rest — are ignored, so
 the config doesn't have to be trimmed down.
 
-> **Tip:** Don't hardcode real credentials. Load `accessKeyId` and `secretAccessKey` from environment variables instead.
+> **Tip:** Don't commit real credentials. Either read them from the environment — a `.env` file next to the config is loaded into `process.env` first — or leave `credentials` out entirely, and the AWS SDK's default credential chain (environment variables, shared config files, an instance or IRSA role) supplies them. `endpoint` and `apiVersion` are optional too: omit `endpoint` for AWS S3.
 
 ### Cache control
 

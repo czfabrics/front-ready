@@ -51,7 +51,7 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
               '--configuration',
               configurationName
             ),
-            bucketName: makeDeploymentBucketName(rootConfig, configurationName),
+            bucketName: yield* makeDeploymentBucketName(rootConfig, configurationName),
             buildOutputPath: outputPath,
             buildOutputHashing: outputHashing,
           }
@@ -74,7 +74,7 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
                 ? ['--config', config.astro.astroConfigPath]
                 : [])
             ),
-            bucketName: makeDeploymentBucketName(rootConfig, config.astro.mode),
+            bucketName: yield* makeDeploymentBucketName(rootConfig, config.astro.mode),
             buildOutputPath: outputPath,
             buildOutputHashing: outputHashing,
           }
@@ -87,7 +87,7 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
               config.custom.build.command,
               ...config.custom.build.args
             ),
-            bucketName: makeDeploymentBucketName(
+            bucketName: yield* makeDeploymentBucketName(
               rootConfig,
               config.custom.environmentName
             ),

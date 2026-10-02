@@ -11,6 +11,13 @@ export const loadConfig = genFn(function* () {
       c12LoadConfig<Config>({
         name: 'frontready',
         configFileRequired: true,
+        // Only `frontready.config.*` is read: c12 would otherwise also merge in a
+        // stray `.frontreadyrc` found in the cwd, unannounced.
+        rcFile: false,
+        packageJson: false,
+        // `.env` is loaded into `process.env` first, so the config can read
+        // secrets from it rather than holding them.
+        dotenv: true,
       }),
     ConfigWrapperError,
     {}

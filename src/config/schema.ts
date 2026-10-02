@@ -9,24 +9,35 @@ import z from 'zod'
 export type Config = z.input<typeof ConfigSchema>
 export type InternalConfig = z.output<typeof ConfigSchema>
 export type ConfigSchema = typeof ConfigSchema
-export const ConfigSchema = z.object({
-  bucket: z.object({
+export const ConfigSchema = z.strictObject({
+  bucket: z.strictObject({
     namePrefix: z
       .string()
-      .nonempty()
-      .regex(/[a-z-]*/, 'String should be kekab-case string'),
-    params: z.object({
+      .regex(
+        /^[a-z0-9][a-z0-9-]*$/,
+        'Should be kebab-case: lowercase letters, digits and hyphens, starting with a letter or digit'
+      ),
+    params: z.strictObject({
       region: z.string().nonempty(),
-      apiVersion: z.string().nonempty(),
-      endpoint: z.string().nonempty(),
+      apiVersion: z.string().nonempty().optional(),
+      /** Omit for AWS S3; set it for any S3-compatible provider. */
+      endpoint: z.string().nonempty().optional(),
       forcePathStyle: z.union([z.stringbool(), z.boolean()]).optional(),
-      credentials: z.object({
-        accessKeyId: z.string().nonempty(),
-        secretAccessKey: z.string().nonempty(),
-      }),
+      /**
+       * Omit to use the AWS SDK's default credential chain — environment
+       * variables, shared config files, or an instance / IRSA role — so CI need
+       * not write secrets into the config file.
+       */
+      credentials: z
+        .strictObject({
+          accessKeyId: z.string().nonempty(),
+          secretAccessKey: z.string().nonempty(),
+          sessionToken: z.string().nonempty().optional(),
+        })
+        .optional(),
     }),
     front: z
-      .object({
+      .strictObject({
         defaultCacheControlValue: CacheControlSchema.default(DEFAULT_CACHE_CONTROL_VALUE),
         cacheControlMapping: CacheControlMappingSchema,
         indexDocumentSuffix: z.string().nonempty().default('index.html'),
@@ -42,8 +53,8 @@ export const ConfigSchema = z.object({
      */
     accessMode: z.enum(['acl', 'policy']).default('acl'),
     upload: z
-      .object({
-        concurrency: z.number().positive().default(50),
+      .strictObject({
+        concurrency: z.number().int().positive().default(50),
         /**
          * Object keys matching any of these are not uploaded — e.g. `'\\.map$'`
          * to keep source maps, and the source they embed, off a public bucket.
@@ -60,25 +71,25 @@ export const ConfigSchema = z.object({
       .prefault({}),
   }),
   front: z.discriminatedUnion('type', [
-    z.object({
+    z.strictObject({
       type: z.literal('angular'),
-      angular: z.object({
+      angular: z.strictObject({
         projectName: z.string().nonempty(),
         angularJsonPath: z.string().nonempty(),
         configurationName: z.string().nonempty().optional(),
       }),
     }),
-    z.object({
+    z.strictObject({
       type: z.literal('astro'),
-      astro: z.object({
+      astro: z.strictObject({
         astroConfigPath: z.string().nonempty().optional(),
         mode: z.string().nonempty(),
       }),
     }),
-    z.object({
+    z.strictObject({
       type: z.literal('custom'),
-      custom: z.object({
-        build: z.object({
+      custom: z.strictObject({
+        build: z.strictObject({
           command: z.string().nonempty(),
           args: z.array(z.string().nonempty()),
         }),

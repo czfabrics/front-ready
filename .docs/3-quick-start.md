@@ -34,7 +34,7 @@ export default {
 } satisfies Config
 ```
 
-> **Tip:** Don't commit real credentials. Load `accessKeyId` and `secretAccessKey` from environment variables instead.
+> **Tip:** Don't commit real credentials. Either read them from the environment — a `.env` file next to the config is loaded into `process.env` first — or leave `credentials` out entirely, and the AWS SDK's default credential chain (environment variables, shared config files, an instance or IRSA role) supplies them. `endpoint` and `apiVersion` are optional too: omit `endpoint` for AWS S3.
 
 ### Commands
 

@@ -25,10 +25,8 @@ export const FileObjectApiInstanceLive = Layer.scoped(
             apiVersion: config.bucket.params.apiVersion,
             endpoint: config.bucket.params.endpoint,
             forcePathStyle: config.bucket.params.forcePathStyle,
-            credentials: {
-              accessKeyId: config.bucket.params.credentials.accessKeyId,
-              secretAccessKey: config.bucket.params.credentials.secretAccessKey,
-            },
+            // Left undefined, the SDK falls back to its default credential chain.
+            credentials: config.bucket.params.credentials,
           })
       ),
       (client) => Effect.sync(() => client.destroy())
