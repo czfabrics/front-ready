@@ -1,4 +1,5 @@
 import { FrontDeploymentContext } from '#contexts/front_deployment'
+import { BucketNotFoundError } from '#errors/bucket'
 import { FrontFileObjectService } from '#front/service'
 import { genFn } from '#helpers/effect'
 import { log } from '@clack/prompts'
@@ -46,6 +47,15 @@ export class CheckUseCase extends Effect.Service<CheckUseCase>()('CheckUseCase',
               'Your front build does not output content-hashed (randomly named) chunk files'
             )
           }
+        }
+
+        // Every check above still reports first; a missing bucket then fails the
+        // command, so `check` can gate a CI pipeline ahead of `deploy`.
+        if (!doesBucketExist) {
+          return yield* new BucketNotFoundError({
+            message: `The bucket '${deploymentContext.bucketName}' does not exist`,
+            bucketName: deploymentContext.bucketName,
+          })
         }
       }),
     }

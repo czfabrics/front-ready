@@ -1,5 +1,6 @@
 import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { InternalConfigContext } from '#contexts/internal_config'
+import { BucketNotFoundError } from '#errors/bucket'
 import { FrontError } from '#errors/front'
 import { FrontFileObjectService } from '#front/service'
 import { genFn } from '#helpers/effect'
@@ -8,7 +9,6 @@ import { genCommandUi } from '#ui/command'
 import { genConfirmUi } from '#ui/confirm'
 import { genLoaderUi } from '#ui/loader'
 import { genTaskLogsUi } from '#ui/tasks'
-import { log } from '@clack/prompts'
 import { Duration, Effect } from 'effect'
 
 export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>()(
@@ -31,9 +31,10 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
 
           const doesBucketExist = yield* frontService.doesFrontBucketExist()
           if (!doesBucketExist) {
-            log.error(`Bucket '${deploymentContext.bucketName}' should exist`)
-
-            return yield* Effect.interrupt
+            return yield* new BucketNotFoundError({
+              message: `Bucket '${deploymentContext.bucketName}' should exist — run \`create\` first`,
+              bucketName: deploymentContext.bucketName,
+            })
           }
 
           yield* genCommandUi({
@@ -53,9 +54,10 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
 
           const hasOneFile = hasMinOneFile(frontBuildFileComponents)
           if (!hasOneFile) {
-            log.error('Front files should contain minimum one file')
-
-            return yield* Effect.interrupt
+            return yield* new FrontError({
+              message: `The front build folder '${deploymentContext.buildOutputPath}' contains no file`,
+              config: configContext.front,
+            })
           }
 
           const { components: frontBuildFileComponentRests, indexDocument } =

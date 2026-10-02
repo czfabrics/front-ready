@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import { defineConfig, defineProject, mergeConfig } from 'vitest/config'
 import packageInfo from './package.json'
@@ -44,6 +45,14 @@ export default mergeConfig(
         projects: ['tsconfig.alias.json'],
       }),
     ],
+    resolve: {
+      alias: {
+        // `src/cli/cli_starter.ts` imports the bare `package.json`, which tsx and
+        // esbuild resolve through `tsconfig.json`'s `baseUrl`; the alias file above
+        // carries no `baseUrl`, so Vite needs telling.
+        'package.json': fileURLToPath(new URL('./package.json', import.meta.url)),
+      },
+    },
     test: {
       name: packageInfo.name,
     },

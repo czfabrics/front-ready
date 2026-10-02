@@ -202,6 +202,8 @@ npx {{ pkg.name }} create       # npm
 
 Verifies that your build produces randomly named (content-hashed) chunk files, which the default cache configuration relies on. Also checks that the configured bucket exists and that it contains at least one object.
 
+Every check reports, then `check` exits non-zero if the bucket does not exist — so it can gate a CI pipeline ahead of `deploy`.
+
 ```sh
 bunx {{ pkg.name }} check      # Bun
 yarn dlx {{ pkg.name }} check  # Yarn
@@ -217,3 +219,13 @@ bunx {{ pkg.name }} deploy      # Bun
 yarn dlx {{ pkg.name }} deploy  # Yarn
 npx {{ pkg.name }} deploy       # npm
 ```
+
+### Exit codes
+
+Every command ends on an outro and reports its outcome through the exit code, so CI can trust it:
+
+| Code  | Meaning                                                                  |
+| ----- | ------------------------------------------------------------------------ |
+| `0`   | Success — including `create` on a bucket that already exists             |
+| `1`   | Failure — invalid config, build failure, upload error, missing bucket, … |
+| `130` | Cancelled — a prompt was declined (or escaped), or Ctrl-C was pressed    |
