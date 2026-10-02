@@ -37,7 +37,7 @@ export class CheckUseCase extends Effect.Service<CheckUseCase>()('CheckUseCase',
             deploymentContext.buildOutputHashing
           )
 
-          if (!isScriptHasHashingMecanism) {
+          if (isScriptHasHashingMecanism) {
             log.success(
               'Your front build outputs content-hashed (randomly named) chunk files'
             )
