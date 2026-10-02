@@ -93,10 +93,13 @@ here; `Match.exhaustive` turns a forgotten branch into a typecheck error.
 
 - `custom`: command and output path come straight from config; `buildOutputHashing` is `undefined`
   (hence `check`'s "unable to determine" warning).
-- `angular`: `src/helpers/angular.ts` parses `angular.json` with a tolerant Zod schema (supports both
-  `architect` and `targets`, both the string and the `{ base, browser }` forms of `outputPath`, and
-  the `:application` builder's implicit `/browser` suffix). If `configurationName` is absent from
-  config, this factory interactively prompts for one and mutates `config.angular.configurationName`.
+- `angular`: `src/helpers/angular.ts` parses `angular.json` as JSONC (comments and trailing commas,
+  as the Angular CLI allows) with a tolerant Zod schema (supports both `architect` and `targets`,
+  both the string and the `{ base, browser }` forms of `outputPath`, and the `:application`
+  builder's implicit `/browser` suffix). Its paths are workspace-relative, so the factory runs
+  `ng build` in the folder holding `angular.json` and resolves the output path there too. If
+  `configurationName` is absent from config, the factory prompts for one among that project's
+  build configurations — resolved into a local, never written back onto the parsed config.
 - `astro`: `src/helpers/astro.ts` loads `astro.config.*` through **c12** (not `FileSystem` — the
   config is JS/TS, so it has to be executed; c12 runs jiti, and `configFileRequired: true` turns a
   missing file into a `ConfigWrapperError`). It reads `outDir` (default `./dist`) and falls back to

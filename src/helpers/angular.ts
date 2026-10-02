@@ -1,6 +1,11 @@
-import { AngularJsonFormatError, AngularJsonMissingDataError } from '#errors/angular'
-import { genFn } from '#helpers/effect'
+import {
+  AngularJsonFormatError,
+  AngularJsonMissingDataError,
+  AngularJsonSyntaxError,
+} from '#errors/angular'
+import { genFn, toEffectSync } from '#helpers/effect'
 import { FileSystem } from '@effect/platform'
+import { JSONCParseError, parseJSONC } from 'confbox'
 import { Effect } from 'effect'
 import z from 'zod'
 
@@ -51,20 +56,15 @@ const getProjectTargets = (project: AngularProject) => {
   return project.architect ?? project.targets ?? {}
 }
 
-// Only the build target's configurations are offered: a name coming from `serve`
-// or `test` would be accepted by the prompt and then rejected by
-// `resolveAngularConfiguration`, which only ever looks at `build`.
-const getAngularConfigurationNames = (angularJson: AngularJson): string[] => {
-  const configurationNames = new Set<string>()
-
-  for (const project of Object.values(angularJson.projects ?? {})) {
-    const buildTarget = getProjectTargets(project)[BUILD_TARGET_NAME]
-
-    for (const name of Object.keys(buildTarget?.configurations ?? {})) {
-      configurationNames.add(name)
-    }
-  }
-  return [...configurationNames]
+// Only the project's own build target is offered: a name coming from another
+// project, or from `serve` or `test`, would be accepted by the prompt and then
+// rejected by `resolveAngularConfiguration`, which only ever looks at this
+// project's `build`.
+const getAngularConfigurationNames = (
+  angularJson: AngularJson,
+  projectName: string
+): string[] => {
+  return Object.keys(getBuildTarget(angularJson, projectName)?.configurations ?? {})
 }
 
 const getBuildTarget = (
@@ -114,11 +114,42 @@ const resolveOutputHashing = (
   return fromConfiguration ?? fromBaseOptions ?? 'none'
 }
 
-export const getAngularConfigurations = genFn(function* (angularJsonPath: string) {
+/**
+ * `parseJSONC` is fault-tolerant: broken input comes back as a best-effort value
+ * — `{}` for a truncated file — with the problems reported only through
+ * `errors`. Left unchecked, a syntax error would surface far from its cause, as a
+ * missing build target.
+ */
+const parseJsoncStrictly = function (content: string): unknown {
+  const errors: JSONCParseError[] = []
+  const value = parseJSONC<unknown>(content, { allowTrailingComma: true, errors })
+
+  const [first] = errors
+  if (first !== undefined) {
+    const line = content.slice(0, first.offset).split('\n').length
+
+    throw new Error(
+      `Invalid JSON at line ${line} (jsonc-parser error code ${first.error})`
+    )
+  }
+
+  return value
+}
+
+/**
+ * The Angular CLI reads `angular.json` as JSONC, so comments and trailing commas
+ * are legal there — and common. A plain `JSON.parse` rejected them with an
+ * untagged `UnknownException` naming neither the file nor the problem.
+ */
+const readAngularJson = genFn(function* (angularJsonPath: string) {
   const fs = yield* FileSystem.FileSystem
 
   const content = yield* fs.readFileString(angularJsonPath)
-  const angularJson = yield* Effect.try(() => JSON.parse(content) as AngularJson)
+  const angularJson = yield* toEffectSync(
+    () => parseJsoncStrictly(content),
+    AngularJsonSyntaxError,
+    { angularJsonPath }
+  )
 
   const parsedJson = AngularJsonSchema.safeParse(angularJson)
 
@@ -130,7 +161,17 @@ export const getAngularConfigurations = genFn(function* (angularJsonPath: string
     )
   }
 
-  return getAngularConfigurationNames(parsedJson.data)
+  return parsedJson.data
+})
+
+export const getAngularConfigurations = genFn(function* (
+  angularJsonPath: string,
+  projectName: string
+) {
+  return getAngularConfigurationNames(
+    yield* readAngularJson(angularJsonPath),
+    projectName
+  )
 })
 
 export const resolveAngularConfiguration = function (
@@ -139,22 +180,9 @@ export const resolveAngularConfiguration = function (
   configurationName: string
 ) {
   return Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem
+    const angularJson = yield* readAngularJson(angularJsonPath)
 
-    const content = yield* fs.readFileString(angularJsonPath)
-    const angularJson = yield* Effect.try(() => JSON.parse(content) as AngularJson)
-
-    const parsedJson = AngularJsonSchema.safeParse(angularJson)
-
-    if (!parsedJson.success) {
-      return yield* Effect.fail(
-        new AngularJsonFormatError({
-          cause: parsedJson.error,
-        })
-      )
-    }
-
-    const target = getBuildTarget(parsedJson.data, projectName)
+    const target = getBuildTarget(angularJson, projectName)
 
     if (!target) {
       return yield* Effect.fail(

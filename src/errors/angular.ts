@@ -1,4 +1,5 @@
 import { Data } from 'effect'
+import { UnknownException } from 'effect/Cause'
 import z, { ZodError as TrueZodError } from 'zod'
 
 export class AngularJsonFormatError extends Data.TaggedError('AngularJsonFormatError')<{
@@ -19,3 +20,9 @@ export class AngularJsonMissingDataError extends Data.TaggedError(
     return `Unable to resolve '${this.subject}' for '${this.projectName}'`
   }
 }
+
+export class AngularJsonSyntaxError extends Data.TaggedError('AngularJsonSyntaxError')<{
+  readonly message: string
+  readonly angularJsonPath: string
+  readonly cause: UnknownException
+}> {}

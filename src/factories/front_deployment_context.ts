@@ -5,15 +5,18 @@ import { getAngularConfigurations, resolveAngularConfiguration } from '#helpers/
 import { resolveAstroConfiguration } from '#helpers/astro'
 import { genSelectUi } from '#ui/select'
 import { log } from '@clack/prompts'
-import { Command } from '@effect/platform'
+import { Command, Path } from '@effect/platform'
 import { Effect, Layer, Match } from 'effect'
 
-const promptAngularConfigurationName = function (angularJsonPath: string) {
+const promptAngularConfigurationName = function (
+  angularJsonPath: string,
+  projectName: string
+) {
   return Effect.gen(function* () {
     log.warning('Angular configuration name not found in configuration')
     log.message(`Reading '${angularJsonPath}' file to get available configurations`)
 
-    const configurations = yield* getAngularConfigurations(angularJsonPath)
+    const configurations = yield* getAngularConfigurations(angularJsonPath, projectName)
 
     return yield* genSelectUi({
       message: 'Pick an Angular configuration.',
@@ -28,18 +31,32 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
     Match.value(rootConfig.front).pipe(
       Match.when({ type: 'angular' }, (config) =>
         Effect.gen(function* () {
+          const path = yield* Path.Path
+
           // Resolved into a local rather than written back onto `config`: the parsed
           // config is shared through `InternalConfigContext`, and must keep saying
           // what was actually validated.
           const configurationName =
             config.angular.configurationName ??
-            (yield* promptAngularConfigurationName(config.angular.angularJsonPath))
+            (yield* promptAngularConfigurationName(
+              config.angular.angularJsonPath,
+              config.angular.projectName
+            ))
 
           const { outputPath, outputHashing } = yield* resolveAngularConfiguration(
             config.angular.angularJsonPath,
             config.angular.projectName,
             configurationName
           )
+
+          // `angular.json` paths are relative to the workspace — the folder holding
+          // it — not to wherever the CLI runs. Both the build and the folder it
+          // writes must be resolved there, or a workspace below the cwd builds and
+          // uploads the wrong place. Kept relative when the workspace is the cwd.
+          const workspaceRoot = path.dirname(config.angular.angularJsonPath)
+          const buildOutputPath = path.isAbsolute(outputPath)
+            ? outputPath
+            : path.join(workspaceRoot, outputPath)
 
           return {
             // `ng build`'s positional argument is the project, not the configuration:
@@ -50,9 +67,9 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
               config.angular.projectName,
               '--configuration',
               configurationName
-            ),
+            ).pipe(Command.workingDirectory(workspaceRoot)),
             bucketName: yield* makeDeploymentBucketName(rootConfig, configurationName),
-            buildOutputPath: outputPath,
+            buildOutputPath,
             buildOutputHashing: outputHashing,
           }
         })
