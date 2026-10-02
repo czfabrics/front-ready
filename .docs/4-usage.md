@@ -154,9 +154,27 @@ the config doesn't have to be trimmed down.
 
 The default cache configuration assumes your build emits **content-hashed (randomly named) chunk files** — the standard cache-busting pattern where a file's name changes whenever its contents change. This lets hashed assets be cached aggressively while the entry point stays fresh.
 
-Patterns are tried in order and the first match wins, so the `^.+$` catch-all at the end is what gives hashed assets their one-year cache. The `^.+\.html$` rule sits just above it so that **every** page — not only the root `index.html` — keeps the short cache: a multi-page build (any Astro static site, or Angular with prerendering) emits `about/index.html`, `blog/post/index.html`, and those must never be pinned for a year.
+Each object key is tested against the `cacheControlMapping` patterns in order, and the first match wins; nothing matching falls back to `defaultCacheControlValue`. The defaults are:
 
-If your build tool doesn't hash filenames this way, override `defaultCacheControlValue` (and `cacheControlMapping`) so you don't serve stale assets:
+| Pattern          | `Cache-Control`                                                                 |
+| ---------------- | ------------------------------------------------------------------------------- |
+| `^index\.html$`  | `max-age=60, stale-while-revalidate=600, stale-if-error=86400`                  |
+| `^assets/.+$`    | `max-age=86400, stale-while-revalidate=600, stale-if-error=86400`               |
+| `^translate/.+$` | `max-age=14400, stale-while-revalidate=600, stale-if-error=86400`               |
+| `^.+\.html$`     | `max-age=60, stale-while-revalidate=600, stale-if-error=86400`                  |
+| `^.+$`           | `max-age=31536000, immutable, stale-while-revalidate=600, stale-if-error=86400` |
+
+The `^.+\.html$` rule keeps **every** page on the short cache — not only the root `index.html` — since a multi-page build (any Astro static site, or Angular with prerendering) emits `about/index.html` and the like, which must never be pinned for a year. Everything else falls to the `^.+$` catch-all: a hashed chunk, cached for a year and marked `immutable`.
+
+Your `cacheControlMapping` is **merged** with the defaults rather than replacing them:
+
+- a new pattern is tried **before** the defaults, in the order you write them;
+- a default's pattern overrides its value **in place**, so overriding `^.+$` keeps it last;
+- `null` removes a default.
+
+Patterns are regular expressions tested against the object key — anchor them with `^` and `$` when you mean the whole key. A pattern that does not compile, or a value with an unknown, repeated or contradictory directive (`no-store` with `max-age`, `public` with `private`, …), is rejected when the config loads, before anything is uploaded.
+
+If your build tool doesn't hash filenames this way, shorten the catch-all so you don't serve stale assets:
 
 ```ts
 import { Config } from '{{ pkg.name }}'
@@ -164,22 +182,18 @@ import { Config } from '{{ pkg.name }}'
 export default {
   bucket: {
     front: {
-      defaultCacheControlValue:
-        'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
       cacheControlMapping: {
-        '^index.html$': 'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
-        '^assets/.+$': 'max-age=86400, stale-while-revalidate=600, stale-if-error=86400',
-        '^translate/.+$':
-          'max-age=14400, stale-while-revalidate=600, stale-if-error=86400',
-        '^.+\\.html$': 'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
-        '^.+$': 'max-age=31536000, stale-while-revalidate=600, stale-if-error=86400',
+        '^fonts/.+$': 'max-age=604800', // added: tried before the defaults
+        '^.+$': 'max-age=3600', // overridden in place: still the last rule
+        '^translate/.+$': null, // removed
       },
       indexDocumentSuffix: 'index.html',
       errorDocumentKey: 'index.html',
     },
     accessMode: 'acl', // or 'policy' for AWS S3 — see "Create" below
     upload: {
-      concurrency: 50,
+      concurrency: 50, // the cap on files in flight, across every folder at once
+      exclude: ['\\.map$'], // keys not to upload — here, source maps
     },
   },
 } satisfies Config

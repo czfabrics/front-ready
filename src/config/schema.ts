@@ -1,61 +1,10 @@
+import {
+  CacheControlMappingSchema,
+  CacheControlSchema,
+  DEFAULT_CACHE_CONTROL_VALUE,
+  isValidRegExp,
+} from '#config/cache_control'
 import z from 'zod'
-
-const NUMERIC = new Set([
-  'max-age',
-  's-maxage',
-  'stale-while-revalidate',
-  'stale-if-error',
-])
-
-const FLAGS = new Set([
-  'no-cache',
-  'no-store',
-  'no-transform',
-  'must-revalidate',
-  'proxy-revalidate',
-  'must-understand',
-  'private',
-  'public',
-  'immutable',
-])
-
-const CacheControlSchema = z.string().superRefine((header, ctx) => {
-  for (const part of header.split(',')) {
-    const t = part.trim()
-    if (!t) continue
-
-    const i = t.indexOf('=')
-    const name = (i === -1 ? t : t.slice(0, i)).trim().toLowerCase()
-    const value =
-      i === -1
-        ? undefined
-        : t
-            .slice(i + 1)
-            .trim()
-            .replace(/^"(.*)"$/, '$1')
-
-    if (NUMERIC.has(name)) {
-      if (value === undefined || !/^\d+$/.test(value)) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `Directive "${name}" requires a non-negative integer`,
-        })
-      }
-    } else if (FLAGS.has(name)) {
-      if (value !== undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `Directive "${name}" does not take a value`,
-        })
-      }
-    } else {
-      ctx.addIssue({
-        code: 'custom',
-        message: `Unknown directive "${name}"`,
-      })
-    }
-  }
-})
 
 export type Config = z.input<typeof ConfigSchema>
 export type InternalConfig = z.output<typeof ConfigSchema>
@@ -78,24 +27,8 @@ export const ConfigSchema = z.object({
     }),
     front: z
       .object({
-        defaultCacheControlValue: CacheControlSchema.default(
-          'max-age=60, stale-while-revalidate=600, stale-if-error=86400'
-        ),
-        cacheControlMapping: z
-          .record(
-            z.templateLiteral([z.literal('^'), z.string(), z.literal('$')]),
-            CacheControlSchema
-          )
-          .default({
-            '^index.html$':
-              'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
-            '^assets/.+$':
-              'max-age=86400, stale-while-revalidate=600, stale-if-error=86400',
-            '^translate/.+$':
-              'max-age=14400, stale-while-revalidate=600, stale-if-error=86400',
-            '^.+\\.html$': 'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
-            '^.+$': 'max-age=31536000, stale-while-revalidate=600, stale-if-error=86400',
-          }),
+        defaultCacheControlValue: CacheControlSchema.default(DEFAULT_CACHE_CONTROL_VALUE),
+        cacheControlMapping: CacheControlMappingSchema,
         indexDocumentSuffix: z.string().nonempty().default('index.html'),
         errorDocumentKey: z.string().nonempty().default('index.html'),
       })
@@ -111,6 +44,18 @@ export const ConfigSchema = z.object({
     upload: z
       .object({
         concurrency: z.number().positive().default(50),
+        /**
+         * Object keys matching any of these are not uploaded — e.g. `'\\.map$'`
+         * to keep source maps, and the source they embed, off a public bucket.
+         */
+        exclude: z
+          .array(
+            z
+              .string()
+              .refine(isValidRegExp, { message: 'Not a valid regular expression' })
+              .transform((pattern) => new RegExp(pattern))
+          )
+          .default([]),
       })
       .prefault({}),
   }),

@@ -1,15 +1,15 @@
-import { ConfigSchema } from '#config/schema'
+import { Config, ConfigSchema } from '#config/schema'
 import { InternalConfigContext } from '#contexts/internal_config'
 import { FileComponent, FileItem, FileTree } from '#file/types'
 import { FileObject } from '#file_object/repository'
-import { detectAndFillCacheControl, pickIndexDocument } from '#helpers/file'
+import { detectAndFillCacheControl, pickIndexDocument, toObjectKey } from '#helpers/file'
 import { NodeContext } from '@effect/platform-node'
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 const BUILD_OUTPUT_PATH = '/tmp/front-ready-build'
 
-const parsedConfig = ConfigSchema.parse({
+const RAW_CONFIG = {
   bucket: {
     namePrefix: 'front-ready',
     params: {
@@ -28,7 +28,9 @@ const parsedConfig = ConfigSchema.parse({
       mode: 'production',
     },
   },
-})
+} satisfies Config
+
+const parsedConfig = ConfigSchema.parse(RAW_CONFIG)
 
 const InternalConfigContextLive = Layer.succeed(InternalConfigContext, parsedConfig)
 
@@ -162,7 +164,7 @@ describe('pickIndexDocument', () => {
 describe('detectAndFillCacheControl', () => {
   const SHORT_CACHE = 'max-age=60, stale-while-revalidate=600, stale-if-error=86400'
   const ONE_YEAR_CACHE =
-    'max-age=31536000, stale-while-revalidate=600, stale-if-error=86400'
+    'max-age=31536000, immutable, stale-while-revalidate=600, stale-if-error=86400'
 
   const { cacheControlMapping, defaultCacheControlValue } = parsedConfig.bucket.front
 
@@ -182,7 +184,7 @@ describe('detectAndFillCacheControl', () => {
   }
 
   it('accepts the HTML rule as a valid mapping key', () => {
-    expect(Object.keys(cacheControlMapping)).toContain('^.+\\.html$')
+    expect(cacheControlMapping.map(({ pattern }) => pattern)).toContain('^.+\\.html$')
   })
 
   it('keeps the root index document on a short cache', () => {
@@ -201,5 +203,39 @@ describe('detectAndFillCacheControl', () => {
 
   it('keeps hashed assets on a one-year cache', () => {
     expect(cacheControlOf('_astro/x.abc123.js')).toBe(ONE_YEAR_CACHE)
+  })
+})
+
+describe('toObjectKey', () => {
+  // A recursive listing on Windows yields `assets\logo.svg`.
+  it('uses forward slashes whatever the platform separator', () => {
+    expect(toObjectKey('assets\\img\\logo.svg')).toBe('assets/img/logo.svg')
+  })
+
+  it('leaves a POSIX path untouched', () => {
+    expect(toObjectKey('_astro/a.123.js')).toBe('_astro/a.123.js')
+  })
+})
+
+describe('upload.exclude', () => {
+  const parseExclude = function (exclude: string[]) {
+    return ConfigSchema.safeParse({
+      ...RAW_CONFIG,
+      bucket: { ...RAW_CONFIG.bucket, upload: { exclude } },
+    })
+  }
+
+  it('compiles each pattern', () => {
+    const result = parseExclude(['\\.map$'])
+
+    expect(result.data?.bucket.upload.exclude[0]?.test('_astro/a.123.js.map')).toBe(true)
+  })
+
+  it('rejects a pattern that does not compile', () => {
+    expect(parseExclude(['[']).success).toBe(false)
+  })
+
+  it('excludes nothing by default', () => {
+    expect(parsedConfig.bucket.upload.exclude).toStrictEqual([])
   })
 })

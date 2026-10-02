@@ -10,6 +10,7 @@ import {
   detectAndFillCacheControl,
   extractFirstFolderFromPath,
   fileIntoObject,
+  toObjectKey,
 } from '#helpers/file'
 import { Effect, Layer, Option } from 'effect'
 
@@ -57,7 +58,12 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
          * copied the whole item list every time, quadratic in the folder size.
          */
         listFrontBuildFileByRootComponents: genFn(function* () {
-          const files = yield* fileRepository.listFiles()
+          const { exclude } = configContext.bucket.upload
+          const files = (yield* fileRepository.listFiles()).filter((file) => {
+            const key = toObjectKey(file.relativePath)
+
+            return !exclude.some((pattern) => pattern.test(key))
+          })
 
           const rootFiles: FileItem[] = []
           const itemsByFolder = new Map<string, FileItem[]>()
