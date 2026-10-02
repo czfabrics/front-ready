@@ -1,8 +1,18 @@
 import { Effect } from 'effect'
 import * as readline from 'node:readline'
 
+/**
+ * `emitKeypressEvents` attaches a permanent `'data'` listener that puts stdin in
+ * flowing mode, and a flowing stdin keeps the event loop alive. Removing our own
+ * `'keypress'` listener is not enough: the stream has to be paused again, or a
+ * command that never ran a clack prompt (which pauses stdin on close) finishes its
+ * outro and then hangs forever on a real terminal. Raw mode is restored to what it
+ * was, not forced off, so a caller that had it on keeps it.
+ */
 const interruptOnCtrlC = function () {
   return Effect.async<never>((resume) => {
+    const wasRaw = process.stdin.isTTY ? process.stdin.isRaw : false
+
     readline.emitKeypressEvents(process.stdin)
     if (process.stdin.isTTY) process.stdin.setRawMode(true)
 
@@ -15,7 +25,8 @@ const interruptOnCtrlC = function () {
 
     return Effect.sync(() => {
       process.stdin.off('keypress', onKeypress)
-      if (process.stdin.isTTY) process.stdin.setRawMode(false)
+      if (process.stdin.isTTY) process.stdin.setRawMode(wasRaw)
+      process.stdin.pause()
     })
   })
 }
