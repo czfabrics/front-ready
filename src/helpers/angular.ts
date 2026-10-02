@@ -45,18 +45,23 @@ type AngularJson = z.infer<typeof AngularJsonSchema>
 type AngularProject = z.infer<typeof AngularProjectSchema>
 type AngularTarget = z.infer<typeof AngularTargetSchema>
 
+const BUILD_TARGET_NAME = 'build'
+
 const getProjectTargets = (project: AngularProject) => {
   return project.architect ?? project.targets ?? {}
 }
 
+// Only the build target's configurations are offered: a name coming from `serve`
+// or `test` would be accepted by the prompt and then rejected by
+// `resolveAngularConfiguration`, which only ever looks at `build`.
 const getAngularConfigurationNames = (angularJson: AngularJson): string[] => {
   const configurationNames = new Set<string>()
 
   for (const project of Object.values(angularJson.projects ?? {})) {
-    for (const target of Object.values(getProjectTargets(project))) {
-      for (const name of Object.keys(target.configurations ?? {})) {
-        configurationNames.add(name)
-      }
+    const buildTarget = getProjectTargets(project)[BUILD_TARGET_NAME]
+
+    for (const name of Object.keys(buildTarget?.configurations ?? {})) {
+      configurationNames.add(name)
     }
   }
   return [...configurationNames]
@@ -65,7 +70,7 @@ const getAngularConfigurationNames = (angularJson: AngularJson): string[] => {
 const getBuildTarget = (
   angularJson: AngularJson,
   projectName: string,
-  targetName = 'build'
+  targetName = BUILD_TARGET_NAME
 ): AngularTarget | undefined => {
   const project = (angularJson.projects ?? {})[projectName]
   if (!project) return undefined
@@ -79,8 +84,14 @@ const getBuildTarget = (
 const usesBrowserSubfolder = (builder?: string): boolean =>
   builder?.endsWith(':application') ?? false
 
-const getAngularOutputPath = (target: AngularTarget): string | undefined => {
-  const outputPath = target.options?.outputPath
+const getAngularOutputPath = (
+  target: AngularTarget,
+  configurationName: string
+): string | undefined => {
+  // A configuration is a partial override of the base options, so it may redirect
+  // the build somewhere else entirely — mirror `resolveOutputHashing` here.
+  const outputPath =
+    target.configurations?.[configurationName]?.outputPath ?? target.options?.outputPath
   if (outputPath === undefined) return undefined
 
   // Angular 17+ object form: { base, browser? } — browser defaults to "browser"
@@ -154,22 +165,22 @@ export const resolveAngularConfiguration = function (
       )
     }
 
-    const outputPath = getAngularOutputPath(target)
-
-    if (!outputPath) {
-      return yield* Effect.fail(
-        new AngularJsonMissingDataError({
-          subject: 'output path',
-          projectName,
-        })
-      )
-    }
-
     const isConfigurationExist = configurationName in (target.configurations ?? {})
     if (!isConfigurationExist) {
       return yield* Effect.fail(
         new AngularJsonMissingDataError({
           subject: `configuration "${configurationName}"`,
+          projectName,
+        })
+      )
+    }
+
+    const outputPath = getAngularOutputPath(target, configurationName)
+
+    if (!outputPath) {
+      return yield* Effect.fail(
+        new AngularJsonMissingDataError({
+          subject: 'output path',
           projectName,
         })
       )

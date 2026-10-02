@@ -43,7 +43,15 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
           )
 
           return {
-            command: Command.make('ng', 'build', config.angular.configurationName),
+            // `ng build`'s positional argument is the project, not the configuration:
+            // the latter only ever arrives through `--configuration`.
+            command: Command.make(
+              'ng',
+              'build',
+              config.angular.projectName,
+              '--configuration',
+              config.angular.configurationName
+            ),
             bucketName: makeDeploymentBucketName(
               rootConfig,
               config.angular.configurationName
