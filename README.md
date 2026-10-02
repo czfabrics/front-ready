@@ -290,6 +290,8 @@ the config doesn't have to be trimmed down.
 
 The default cache configuration assumes your build emits **content-hashed (randomly named) chunk files** — the standard cache-busting pattern where a file's name changes whenever its contents change. This lets hashed assets be cached aggressively while the entry point stays fresh.
 
+Patterns are tried in order and the first match wins, so the `^.+$` catch-all at the end is what gives hashed assets their one-year cache. The `^.+\.html$` rule sits just above it so that **every** page — not only the root `index.html` — keeps the short cache: a multi-page build (any Astro static site, or Angular with prerendering) emits `about/index.html`, `blog/post/index.html`, and those must never be pinned for a year.
+
 If your build tool doesn't hash filenames this way, override `defaultCacheControlValue` (and `cacheControlMapping`) so you don't serve stale assets:
 
 ```ts
@@ -305,6 +307,7 @@ export default {
         '^assets/.+$': 'max-age=86400, stale-while-revalidate=600, stale-if-error=86400',
         '^translate/.+$':
           'max-age=14400, stale-while-revalidate=600, stale-if-error=86400',
+        '^.+\\.html$': 'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
         '^.+$': 'max-age=31536000, stale-while-revalidate=600, stale-if-error=86400',
       },
       indexDocumentSuffix: 'index.html',
