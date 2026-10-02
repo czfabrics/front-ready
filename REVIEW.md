@@ -10,34 +10,39 @@ Every finding below was traced in the source. Items marked **(reproduced)** were
 confirmed by executing the code; `F-1` is the only item resting on documented AWS semantics
 rather than an observed run.
 
-Items marked **✅ FIXED** are resolved in the working tree, each with regression tests that fail
-against the previous code. Test count went 41 → 61 across 3 → 5 files; `bun run typecheck`,
-`bunx vitest run` and `prettier --check` were re-run independently of the change.
+Items marked **✅ FIXED** are resolved, each with regression tests that fail against the previous
+code, and each names the commit that fixed it. Where a fix deviates from what this review first
+suggested, its note says so. Test count went **41 → 159** across **3 → 16** files; `bun run typecheck`,
+`bunx vitest run`, `prettier --list-different .` and `bun run build` all pass, and the bundled
+`.dist/main.mjs` was smoke-tested both piped and under a pty.
 
 ---
 
 ## Severity summary
 
-| Severity  | Count | IDs                                                                                                               |
-| --------- | ----- | ----------------------------------------------------------------------------------------------------------------- |
-| Critical  | 4     | `A-1` `B-1` `C-1` `F-1`                                                                                           |
-| High      | 10    | `A-3` `B-2` `C-2` `C-3` `D-2` `E-1` `E-3` `E-4` `F-4` `G-1`                                                       |
-| Medium    | 19    | `A-2` `A-4` `A-5` `C-4` `D-4` `D-5` `E-5` `E-6` `E-7` `F-2` `F-3` `G-2` `H-1` `H-2` `H-3` `H-4` `I-1` `I-2` `J-1` |
-| Low       | 15    | `B-3` `C-5` `C-6` `C-7` `E-8` `E-9` `G-3` `H-5` `H-6` `H-7` `I-3` `J-2` `K-4` `L-1` `L-2`                         |
-| **Fixed** | **4** | `D-1` `D-3` `E-2` `E-10`                                                                                          |
+| Severity  | Count  | Status                                              |
+| --------- | ------ | --------------------------------------------------- |
+| Critical  | 4      | all fixed                                           |
+| High      | 12     | all fixed                                           |
+| Medium    | 20     | all fixed                                           |
+| Low       | 16     | all fixed (including `K-4`)                         |
+| Gaps      | 3      | `K-1`–`K-3`: out of scope (feature work), not fixed |
+| **Fixed** | **52** | every finding except the three `K` feature gaps     |
 
 **Fix these four first** — each is a few lines, and each is independent:
 
-1. `B-1` — pressing Escape at the deploy confirmation **starts the deploy**.
-2. `A-1` — every post-config failure exits `0`, so CI reports a green deploy that never happened.
-3. `C-1` — `check` hangs forever on a real terminal.
+1. ~~`B-1` — pressing Escape at the deploy confirmation **starts the deploy**.~~ **✅ FIXED**
+2. ~~`A-1` — every post-config failure exits `0`.~~ **✅ FIXED**
+3. ~~`C-1` — `check` hangs forever on a real terminal.~~ **✅ FIXED**
 4. ~~`D-1` — the wrong `index.html` is deferred.~~ **✅ FIXED**
 
 ---
 
 ## A. Failure reporting & exit codes
 
-### A-1 · Critical · Every post-config failure exits `0` (reproduced)
+### A-1 · Critical · ✅ FIXED · Every post-config failure exits `0` (reproduced)
+
+> **✅ Resolved in `31b8b29`.** One `runCliCommand` now owns the lifecycle of all three commands: failure exits `1`, cancellation `130`, success `0`. Verified end to end through `main.ts`; pinned by `src/cli/command_runner.test.ts`.
 
 `src/cli/deploy_on_bucket_command.ts:38-44` — identical in `check_command.ts:38-44` and
 `create_front_bucket_command.ts:38-44`.
@@ -58,7 +63,9 @@ green on a build that never built and an upload that never uploaded.
 **Fix:** re-fail after formatting, or set `process.exitCode = 1` in the handler. Keep `0` only for
 a genuine user cancel.
 
-### A-2 · Medium · Hard errors are modelled as user cancellation (reproduced)
+### A-2 · Medium · ✅ FIXED · Hard errors are modelled as user cancellation (reproduced)
+
+> **✅ Resolved in `31b8b29`.** `deploy` fails with a `BucketNotFoundError` / `FrontError` instead of `Effect.interrupt`. `create` on an existing bucket is an idempotent **success** (exit `0`) rather than a cancellation, so re-running it in CI stays green.
 
 `src/use_cases/deploy_on_bucket.ts:32-37` and `:54-59` use `Effect.interrupt` for "bucket should
 exist" and "no files to upload". The command wrapper renders that as `cancel(...)`, and the
@@ -72,7 +79,9 @@ So a genuine misconfiguration is presented to the user, and to CI, as though the
 
 **Fix:** reserve `Effect.interrupt` for actual cancellation; make these typed failures.
 
-### A-3 · High · One failed upload dumps the whole file to the terminal (reproduced)
+### A-3 · High · ✅ FIXED · One failed upload dumps the whole file to the terminal (reproduced)
+
+> **✅ Resolved in `3b005e2`.** `FileObjectError` holds a `FileObjectDescription` (the object minus its bytes) and a `commandName` instead of the `$Command`. Measured: **4,395,197 → 272 characters**. `runCliCommand` renders tag + message + one line per context field instead of `toStringUnknown`.
 
 `src/cli/deploy_on_bucket_command.ts:41` calls `Inspectable.toStringUnknown(error)` on a
 `FileObjectError`, which carries `file: Partial<FileObject>` (the full `content: Uint8Array`) _and_
@@ -90,7 +99,9 @@ A 1 MB chunk would print roughly 22 MB. In CI that lands in the build log.
 **Fix:** drop `content` / `Body` from the error context — keep `key`, `contentType`,
 `cacheControlValue` — and render a curated summary instead of `toStringUnknown`.
 
-### A-4 · Medium · Config-load failure bypasses the error UI entirely (reproduced)
+### A-4 · Medium · ✅ FIXED · Config-load failure bypasses the error UI entirely (reproduced)
+
+> **✅ Resolved in `31b8b29`.** Config loading sits inside the shared error handling. A missing config now renders as `ConfigWrapperError: …` + outro, exit `1`.
 
 `src/cli/*_command.ts:21-26` — `startCli()` runs in the _outer_ `Effect.gen`, while the
 `onInterrupt` / `catchAll` pipe wraps only the _inner_ one.
@@ -109,7 +120,9 @@ message is buried in the dump.
 
 **Fix:** move the pipe so it wraps the outer gen, and fix `A-1` so the codes agree.
 
-### A-5 · Medium · `check` cannot be used as a CI gate
+### A-5 · Medium · ✅ FIXED · `check` cannot be used as a CI gate
+
+> **✅ Resolved in `31b8b29`.** `check` still reports every check, then fails with `BucketNotFoundError` when the bucket is missing. Exit codes are documented in `.docs/4-usage.md`.
 
 `src/use_cases/check.ts:18` logs a warning when the bucket is missing and still exits `0`
 (`A-1`). There is no way to use `check` to fail a pipeline.
@@ -120,7 +133,9 @@ message is buried in the dump.
 
 ## B. Prompt cancellation
 
-### B-1 · Critical · Pressing Escape at the deploy confirmation starts the deploy
+### B-1 · Critical · ✅ FIXED · Pressing Escape at the deploy confirmation starts the deploy
+
+> **✅ Resolved in `a551fc5`.** New `interruptOnPromptCancel` maps clack's `isCancel` to `Effect.interrupt`; `genConfirmUi` returns `Effect<boolean, …>` with no `symbol`. Pinned by `src/ui/prompt.test.ts`.
 
 `src/ui/confirm.ts:12-21` → `src/use_cases/deploy_on_bucket.ts:23-30`; same shape at
 `src/use_cases/create_front_bucket.ts:25-32`.
@@ -146,7 +161,9 @@ it. Escape has no such backstop.
 `Effect.flatMap(v => isCancel(v) ? Effect.interrupt : Effect.succeed(v))`. The return type then
 becomes `Effect<boolean, …>`.
 
-### B-2 · High · Cancelling the Angular picker yields the literal string `"Symbol(clack:cancel)"`
+### B-2 · High · ✅ FIXED · Cancelling the Angular picker yields the literal string `"Symbol(clack:cancel)"`
+
+> **✅ Resolved in `a551fc5`.** Same wrapper for `genSelectUi`; the `.toString()` is gone.
 
 `src/ui/select.ts:12` + `src/factories/front_deployment_context.ts:31-36`:
 
@@ -162,7 +179,9 @@ config.angular.configurationName = configurationName.toString()
 
 **Fix:** same as `B-1`.
 
-### B-3 · Low · The picker mutates the validated config in place
+### B-3 · Low · ✅ FIXED · The picker mutates the validated config in place
+
+> **✅ Resolved in `a551fc5`.** The picked name is resolved into a local and used for the build command and the bucket name; the parsed config is never written to.
 
 Same line. `InternalConfigContext` and the deployment context then disagree about what was
 validated.
@@ -173,7 +192,9 @@ validated.
 
 ## C. Process lifecycle & resource safety
 
-### C-1 · Critical · `check` hangs forever on a real terminal (reproduced)
+### C-1 · Critical · ✅ FIXED · `check` hangs forever on a real terminal (reproduced)
+
+> **✅ Resolved in `7d734fb`.** The finalizer pauses stdin and restores the previous raw-mode value. Under a pty, `check` went from exit `124` (killed) to returning immediately — also verified on the bundled `.dist/main.mjs`.
 
 `src/helpers/runtime.ts:4-21`. `readline.emitKeypressEvents(process.stdin)` installs a permanent
 internal `'data'` listener that resumes stdin. The finalizer removes the `'keypress'` listener and
@@ -194,7 +215,9 @@ stdin — but `check` runs no prompt and no spinner. Piped/non-TTY runs exit fin
 **Fix:** `process.stdin.pause()` (and/or `.unref()`) in the `Effect.async` finalizer, and restore
 the _previous_ raw-mode value rather than unconditionally `false`.
 
-### C-2 · High · `toEffect` captures an already-started promise
+### C-2 · High · ✅ FIXED · `toEffect` captures an already-started promise
+
+> **✅ Resolved in `9faa14d`.** `toEffect` takes `(signal) => PromiseLike`; every S3 `send` gets `{ abortSignal: signal }`. Tests pin laziness, a retry re-running the work, and interruption aborting the signal.
 
 `src/helpers/effect.ts:41-55` takes `promise: Promise<T>`, so the side effect fires at
 _construction_, not when the effect runs — `Effect.tryPromise(() => promise)` merely re-observes a
@@ -212,7 +235,9 @@ it.
 `Effect.tryPromise({ try: (signal) => fn(signal), catch })` — threading `abortSignal` into the AWS
 commands.
 
-### C-3 · High · The `S3Client` is never destroyed
+### C-3 · High · ✅ FIXED · The `S3Client` is never destroyed
+
+> **✅ Resolved in `140e241`.** `FileObjectApiInstanceLive` is `Layer.scoped` with `acquireRelease(…, client.destroy())`.
 
 `src/file_object/api_instance.ts:10-26` is a `Layer.effect`, so there is no finalizer and
 `client.destroy()` is never called. Sockets and the SDK keep-alive agent survive until process
@@ -221,7 +246,9 @@ exit — which, per `C-1`, may be never.
 **Fix:** `Layer.scoped(FileObjectApiInstance, Effect.acquireRelease(make, c => Effect.sync(() => c.destroy())))`.
 The other `Layer.effect`s in `src/front/service.ts:18,26` hold no resources and are fine.
 
-### C-4 · Medium · Spinner and task log have no interrupt-safe cleanup
+### C-4 · Medium · ✅ FIXED · Spinner and task log have no interrupt-safe cleanup
+
+> **✅ Resolved in `b14f0e1`.** `genLoaderUi` cancels the spinner on interrupt (once — guarded against the `process.exit` path); `genTaskLogsUi` closes interrupted groups and the outer log on failure.
 
 `src/ui/loader.ts:19-49` stops the spinner on success and on failure but has no
 `Effect.ensuring` / `onInterrupt`; clack's spinner holds a non-`unref`'d `setInterval`, a hidden
@@ -235,7 +262,9 @@ race — leaves a spinning terminal with a hidden cursor.
 
 **Fix:** wrap both in `Effect.acquireRelease` / `Effect.ensuring`.
 
-### C-5 · Low · `interceptProcessExit` neutralises legitimate exits
+### C-5 · Low · ✅ FIXED · `interceptProcessExit` neutralises legitimate exits
+
+> **✅ Resolved in `4c5ff7e`.** An intercepted `process.exit` now **interrupts** the wrapped work instead of being swallowed, so nothing runs on in a state its caller believed was over. A non-zero code asked for is kept as the exit code. The LIFO caveat is documented on the function.
 
 `src/helpers/runtime.ts:29-40` replaces the global `process.exit` for the whole loader. Clack's
 `block()` calls `process.exit(0)` on Ctrl-C; after interception the handler returns and never
@@ -245,7 +274,9 @@ save/restore is also only safe LIFO — not currently reachable, since all loade
 The acquire/release itself **is** correct: `Effect.acquireRelease` under `Effect.scoped` restores
 `process.exit` on failure _and_ on interrupt.
 
-### C-6 · Low · `toEffectSync` is not sync
+### C-6 · Low · ✅ FIXED · `toEffectSync` is not sync
+
+> **✅ Resolved in `9faa14d`.** `toEffectSync` is `Effect.try`, runnable with `runSync`. _Deviation:_ a throw still maps to the tagged error rather than becoming a defect — that is the documented `toEffectSync` contract the callers' error types rely on.
 
 `src/helpers/effect.ts:12-24` routes a synchronous function through `new Promise` purely to reuse
 `toEffect`. That forces a fiber suspension per call — once per file for `FileItem.contentType` —
@@ -253,7 +284,9 @@ and converts what should be a **defect** (a throw from `mrmime`) into a typed fa
 
 **Fix:** `Effect.try({ try, catch })` is the direct equivalent.
 
-### C-7 · Low · `main.ts:8` runs the CLI eagerly at module scope
+### C-7 · Low · ✅ FIXED · `main.ts:8` runs the CLI eagerly at module scope
+
+> **✅ Resolved in `9faa14d`.** Fixed with `C-2`: `main.ts` passes `() => run(cli, …)`.
 
 Covered by `C-2`; listed separately because the fix is local.
 
@@ -298,7 +331,9 @@ _at the root of_ the build folder. That string was left alone.
 _Side benefit:_ an exact match also sidesteps `D-4` for the root document, since a root-level
 `relativePath` carries no separator on any platform.
 
-### D-2 · High · Angular's `outputPath` is never resolved against the workspace root
+### D-2 · High · ✅ FIXED · Angular's `outputPath` is never resolved against the workspace root
+
+> **✅ Resolved in `9b62ad1`.** Fixed in the factory rather than in `resolveAngularConfiguration`, which keeps returning the path as `angular.json` writes it (workspace-relative — what its 20 existing tests pin). The factory resolves it against `dirname(angularJsonPath)`; relative stays relative when the workspace is the cwd, absolute is kept. Pinned by `src/factories/front_deployment_context.test.ts`.
 
 `src/helpers/angular.ts:190` returns `outputPath` verbatim; `front_deployment_context.ts:59` feeds
 it to `buildOutputPath`, which becomes `FileRepositoryContext.cwd` (`src/front/service.ts:22`) and
@@ -335,7 +370,9 @@ the relative case must stay relative, so nobody "fixes" it to `resolve` later. F
 `output: 'server'`; absolute `build.client` under an absolute `outDir`; and relative `build.client`
 under an absolute `outDir`, guarding that normal nesting still happens.
 
-### D-4 · Medium · Windows produces broken object keys
+### D-4 · Medium · ✅ FIXED · Windows produces broken object keys
+
+> **✅ Resolved in `eb22049`.** `toObjectKey` normalises `\` to `/` for the uploaded key, and `upload.exclude` matches the same normalised key.
 
 `@effect/platform-node-shared`'s `readDirectory` is a direct
 `fs.promises.readdir(path, { recursive: true })`, which returns `assets\logo.svg` on Windows.
@@ -345,7 +382,9 @@ normalises separators — `fileIntoObject` does not.
 
 **Fix:** normalise to `/` when building the key.
 
-### D-5 · Medium · The build command is spawned in `process.cwd()`
+### D-5 · Medium · ✅ FIXED · The build command is spawned in `process.cwd()`
+
+> **✅ Resolved in `9b62ad1`.** `ng build` runs with `Command.workingDirectory(dirname(angularJsonPath))`.
 
 `src/factories/front_deployment_context.ts:46-54` builds `Command.make('ng', 'build', …)` with no
 `Command.workingDirectory`. A non-root `angularJsonPath` (see `D-2`) therefore also runs `ng build`
@@ -358,7 +397,9 @@ in the wrong directory.
 > This is the area flagged for extra attention. `E-1`, `E-2` and `E-3` are the ones that will bite
 > real users.
 
-### E-1 · High · A custom `cacheControlMapping` discards every default (reproduced)
+### E-1 · High · ✅ FIXED · A custom `cacheControlMapping` discards every default (reproduced)
+
+> **✅ Resolved in `eb22049`.** The mapping **merges**: new patterns are tried before the defaults in the order written, overriding a default keeps it in place (so overriding `^.+$` keeps it last), `null` removes a default. A mapping copied from the docs still behaves exactly as before.
 
 Zod `.default()` replaces, it does not merge:
 
@@ -402,7 +443,9 @@ _Open judgement call:_ `'^assets/.+$'` still precedes the new rule, so `assets/f
 no HTML page should ever outlive 60 s, the rule needs hoisting above `^assets/.+$` and
 `^translate/.+$`.
 
-### E-3 · High · An invalid regex key passes validation and crashes mid-deploy (reproduced)
+### E-3 · High · ✅ FIXED · An invalid regex key passes validation and crashes mid-deploy (reproduced)
+
+> **✅ Resolved in `eb22049`.** Keys are validated as compilable regexes and compiled once at config load (`src/config/cache_control.ts`).
 
 The key schema only enforces the `^…$` _shape_, never that the pattern compiles:
 
@@ -417,7 +460,9 @@ That is a raw defect — not a tagged error — thrown from `detectAndFillCacheC
 **Fix:** `superRefine` with `new RegExp` in a try/catch at config load, and have `check` validate
 the patterns before anything is uploaded.
 
-### E-4 · High · `ContentEncoding: 'binary'` on every object
+### E-4 · High · ✅ FIXED · `ContentEncoding: 'binary'` on every object
+
+> **✅ Resolved in `3b005e2`.** Removed. Pinned by `src/file_object/repository.test.ts`.
 
 `src/file_object/repository.ts:108`. Not a valid HTTP content coding, and nothing in the repo
 compresses anything — `grep` for `gzip|brotli|zlib` returns only this line. It is echoed back on
@@ -425,14 +470,18 @@ GET and can disrupt CDN compression negotiation.
 
 **Fix:** omit it; set it only if and when the body is actually encoded.
 
-### E-5 · Medium · Patterns are recompiled for every file
+### E-5 · Medium · ✅ FIXED · Patterns are recompiled for every file
+
+> **✅ Resolved in `eb22049`.** Patterns are compiled once, into `CacheControlRule`s, when the config is parsed.
 
 `src/helpers/file.ts:28-29` builds a fresh `RegExp` per pattern per file — for a 5,000-file build
 with 4 patterns, up to 20,000 compilations.
 
 **Fix:** compile once at config load (which also gives `E-3` its natural home).
 
-### E-6 · Medium · Key schema is over-strict and under-strict at once (reproduced)
+### E-6 · Medium · ✅ FIXED · Key schema is over-strict and under-strict at once (reproduced)
+
+> **✅ Resolved in `eb22049`.** _Deviation:_ the forced `^…$` is dropped rather than documented — any valid regex is accepted, matched against the object key, and the docs say to anchor when you mean the whole key.
 
 `src/config/schema.ts:84-97`. `z.templateLiteral([literal('^'), string(), literal('$')])` rejects
 `'index.html'`, `'^assets/.+'` and `'.*'` with the opaque `✖ Invalid key in record` — a constraint
@@ -440,7 +489,9 @@ documented nowhere in `.docs/` — while accepting `'^([$'`, which cannot compil
 
 **Fix:** `z.string().refine(compiles)`, and document the anchoring expectation.
 
-### E-7 · Medium · Cache-control value validation gaps (reproduced)
+### E-7 · Medium · ✅ FIXED · Cache-control value validation gaps (reproduced)
+
+> **✅ Resolved in `eb22049`.** Repeated and contradictory directives (`no-store` + a lifetime, `public` + `private`, `no-cache` + `immutable`) are rejected, and accepted values are normalised (`MAX-AGE= 60` → `max-age=60`).
 
 ```
 "max-age=60, max-age=120"    ACCEPTED   (duplicate directive)
@@ -450,11 +501,15 @@ documented nowhere in `.docs/` — while accepting `'^([$'`, which cannot compil
 
 Rejections work correctly for `no-cache=1` and `max-age=-5`.
 
-### E-8 · Low · The shipped default `'^index.html$'` leaves `.` unescaped
+### E-8 · Low · ✅ FIXED · The shipped default `'^index.html$'` leaves `.` unescaped
+
+> **✅ Resolved in `eb22049`.** Default is `'^index\\.html$'`.
 
 Matches `indexXhtml`. Cosmetic, but it is the default users copy from the README.
 
-### E-9 · Low · No `immutable` on the hashed-asset rule
+### E-9 · Low · ✅ FIXED · No `immutable` on the hashed-asset rule
+
+> **✅ Resolved in `eb22049`.** The default catch-all is `max-age=31536000, immutable, …`.
 
 `max-age=31536000` without `immutable` still triggers revalidation on reload.
 
@@ -477,7 +532,9 @@ Vanishingly rare, but it is a real widening.
 
 ## F. Bucket provisioning & S3 semantics
 
-### F-1 · Critical · `BucketOwnerEnforced` and `public-read` ACLs are mutually exclusive
+### F-1 · Critical · ✅ FIXED · `BucketOwnerEnforced` and `public-read` ACLs are mutually exclusive
+
+> **✅ Resolved in `140e241`.** New `bucket.accessMode`: `'acl'` (default — no `BucketOwnerEnforced`, ACLs as before) or `'policy'` (`BucketOwnerEnforced`, Block Public Access lifted, `s3:GetObject` bucket policy, no object ACLs). Pinned against a recording fake client. **Still not exercised against real AWS** — worth one live `create` + `deploy` in `'policy'` mode before relying on it.
 
 `src/file_object/repository.ts:34-48` sets `ObjectOwnership: 'BucketOwnerEnforced'`, which
 **disables ACLs** on the bucket. The immediately following `PutBucketAcl { ACL: 'public-read' }`
@@ -494,18 +551,24 @@ publicly readable".
 _Confidence: documented AWS semantics; not executed against real AWS. Worth a live test before
 acting._
 
-### F-2 · Medium · No `PutPublicAccessBlock`, no bucket policy
+### F-2 · Medium · ✅ FIXED · No `PutPublicAccessBlock`, no bucket policy
+
+> **✅ Resolved in `140e241`.** `'policy'` mode sends `PutPublicAccessBlock` then `PutBucketPolicy`.
 
 New AWS buckets have Block Public Access on by default, so even a working public-read ACL would be
 refused. A bucket policy is the only way to make a `BucketOwnerEnforced` website bucket readable.
 
-### F-3 · Medium · `LocationConstraint` and the unchecked region cast
+### F-3 · Medium · ✅ FIXED · `LocationConstraint` and the unchecked region cast
+
+> **✅ Resolved in `140e241`.** `LocationConstraint` is omitted for `us-east-1`. The context carries the region as a `string`; the SDK's `BucketLocationConstraint` excludes `'us-east-1'` by design, so the narrowing happens only where the constraint is built.
 
 `CreateBucketConfiguration.LocationConstraint: 'us-east-1'` is rejected by AWS — the field must be
 omitted for that region. `region` reaches the SDK through an unchecked
 `as BucketLocationConstraint` cast at `src/front/service.ts:33`.
 
-### F-4 · High · `doesBucketExist` reports every error as "does not exist" (reproduced)
+### F-4 · High · ✅ FIXED · `doesBucketExist` reports every error as "does not exist" (reproduced)
+
+> **✅ Resolved in `140e241`.** Only a 404 / `NotFound` / `NoSuchBucket` means missing; everything else fails with its cause. Against an unreachable endpoint, `check` now reports `connect ECONNREFUSED` and exits `1`, instead of "does not exist" and `0`.
 
 `src/file_object/repository.ts:49-67` collapses _all_ `HeadBucket` failures to `false`. Against an
 unreachable endpoint:
@@ -526,7 +589,9 @@ unrelated message.
 
 ## G. Concurrency & performance
 
-### G-1 · High · Upload concurrency is not actually bounded
+### G-1 · High · ✅ FIXED · Upload concurrency is not actually bounded
+
+> **✅ Resolved in `b14f0e1`.** One semaphore across every group, with the file read inside the permit. Pinned by `src/ui/tasks.test.ts` (peak 4 at a concurrency of 4 across six groups; the old code peaked at 24).
 
 `src/ui/tasks.ts:63` runs groups with `concurrency: 'unbounded'` while `subTaskConcurrency` (`:46`)
 bounds only _within_ a group. With the default `bucket.upload.concurrency = 50` and a typical build
@@ -541,7 +606,9 @@ default `ulimit -n` is 256, i.e. `EMFILE` during deploy.
 **Fix:** one shared `Effect.makeSemaphore(concurrency)` taken inside `processItem`, with a small
 constant for group concurrency.
 
-### G-2 · Medium · `O(n²)` regrouping of build files
+### G-2 · Medium · ✅ FIXED · `O(n²)` regrouping of build files
+
+> **✅ Resolved in `b14f0e1`.** Single pass into a `Map<string, FileItem[]>`, each tree built once; group order is deterministic. `extractRootFileTree` became dead code and was removed.
 
 `src/front/service.ts:89` calls `FileTree.append` per file, and `src/file/types.ts:129-136` rebuilds
 the entire array plus a fresh `Effect.gen` / `path.resolve` each time. For a 5,000-file `_astro/`
@@ -549,7 +616,9 @@ that is roughly 12.5M element copies and 5,000 throwaway trees.
 
 **Fix:** accumulate into a `Map<string, FileItem[]>` and build each `FileTree` once.
 
-### G-3 · Low · Unbounded `stat` fan-out
+### G-3 · Low · ✅ FIXED · Unbounded `stat` fan-out
+
+> **✅ Resolved in `b14f0e1`.** `stat` concurrency bounded at 64.
 
 `src/file/repository.ts:20-27` spawns one `fs.stat` fiber per entry of a recursive listing. `stat`
 holds no fd, so this is fiber churn rather than `EMFILE` — still worth a bound.
@@ -558,7 +627,9 @@ holds no fd, so this is fiber churn rather than `EMFILE` — still worth a bound
 
 ## H. Configuration & validation
 
-### H-1 · Medium · `namePrefix` validation is a no-op (reproduced)
+### H-1 · Medium · ✅ FIXED · `namePrefix` validation is a no-op (reproduced)
+
+> **✅ Resolved in `89c8230`.** Anchored kebab-case: `/^[a-z0-9][a-z0-9-]*$/`.
 
 `src/config/schema.ts:65-68` — `/[a-z-]*/` is unanchored and `*`-quantified, so it matches
 everything:
@@ -571,17 +642,23 @@ The result is an opaque `InvalidBucketName` from S3 at `CreateBucket`.
 
 **Fix:** `/^[a-z0-9][a-z0-9-]*$/`. Also "kekab" → "kebab" in the message (`H-7`).
 
-### H-2 · Medium · No `.strict()` anywhere
+### H-2 · Medium · ✅ FIXED · No `.strict()` anywhere
+
+> **✅ Resolved in `89c8230`.** Every config object is a `z.strictObject` — including the two written across lines, which a first pass missed and a test caught.
 
 An unknown top-level key parses fine; `indexDocumentSufix: 'main.html'` is silently dropped and the
 default used.
 
-### H-3 · Medium · `concurrency` accepts non-integers
+### H-3 · Medium · ✅ FIXED · `concurrency` accepts non-integers
+
+> **✅ Resolved in `89c8230`.** `.int().positive()`.
 
 `src/config/schema.ts:104` — `z.number().positive()` accepts `2.7` and `0.5`, which flow straight
 into `Stream.mapEffect({ concurrency })`. Needs `.int()`.
 
-### H-4 · Medium · Credentials are mandatory with no AWS default chain
+### H-4 · Medium · ✅ FIXED · Credentials are mandatory with no AWS default chain
+
+> **✅ Resolved in `89c8230`.** `credentials`, `endpoint` and `apiVersion` are optional; omitted credentials fall back to the SDK's default chain. c12 loads `.env` (`dotenv: true`).
 
 `src/config/schema.ts:69-78` makes `apiVersion` and `endpoint` required and `credentials` required
 with no fallback to the SDK's default credential provider (env vars, instance/IRSA roles). A CI job
@@ -591,23 +668,31 @@ warns against.
 **Fix:** make them optional and let the SDK resolve, and/or enable c12's `dotenv: true` in
 `src/config/loader.ts:10-13`.
 
-### H-5 · Low · A stray `.frontreadyrc` silently merges in
+### H-5 · Low · ✅ FIXED · A stray `.frontreadyrc` silently merges in
+
+> **✅ Resolved in `89c8230`.** `rcFile: false`, `packageJson: false`.
 
 c12 defaults `rcFile` to `.frontreadyrc`. Pass `rcFile: false` and `packageJson: false` if that is
 not intended. (`globalRc` defaults off, so no home-directory read.)
 
-### H-6 · Low · Composed bucket name length is never checked
+### H-6 · Low · ✅ FIXED · Composed bucket name length is never checked
+
+> **✅ Resolved in `89c8230`.** `makeDeploymentBucketName` checks the _composed_ name against S3's rules and fails with an `InvalidBucketNameError` naming the rule broken.
 
 `src/factories/bucket_name.ts:7` builds `${namePrefix}-${identifier}`; S3 caps bucket names at 63
 characters. Validate the composed name, which is where the real constraint lives.
 
-### H-7 · Low · "kekab-case" typo in the validation message
+### H-7 · Low · ✅ FIXED · "kekab-case" typo in the validation message
+
+> **✅ Resolved in `89c8230`.** Fixed with `H-1`.
 
 ---
 
 ## I. Framework adapters
 
-### I-1 · Medium · A JSONC `angular.json` fails with an opaque error (reproduced)
+### I-1 · Medium · ✅ FIXED · A JSONC `angular.json` fails with an opaque error (reproduced)
+
+> **✅ Resolved in `9b62ad1`.** Parsed with `confbox`'s `parseJSONC` (now a direct dependency). That parser is fault-tolerant — a truncated file came back as `{}` — so its error list is checked and a broken file fails as `AngularJsonSyntaxError` naming the file and line.
 
 `src/helpers/angular.ts:121` and `:145` call `Effect.try(JSON.parse)` directly — against the
 `toEffect` / `toEffectSync` convention in `CLAUDE.md` — so the result is not a `Data.TaggedError`.
@@ -624,7 +709,9 @@ No filename, no line number, no hint that it is a JSON problem.
 **Fix:** route through `toEffectSync` with a dedicated error carrying `angularJsonPath`, and
 consider a JSONC-tolerant parse.
 
-### I-2 · Medium · The configuration picker offers other projects' configurations (reproduced)
+### I-2 · Medium · ✅ FIXED · The configuration picker offers other projects' configurations (reproduced)
+
+> **✅ Resolved in `9b62ad1`.** `getAngularConfigurations(path, projectName)` lists that project's build configurations only. The existing test asserting the cross-project behaviour was rewritten deliberately.
 
 `src/helpers/angular.ts:57-68` collects names from _every_ project; the comment at `:54-56` claims
 otherwise, but it filters by _target_, not by project. With `app` (production, development) and
@@ -632,7 +719,9 @@ otherwise, but it filters by _target_, not by project. With `app` (production, d
 `angular.test.ts:341` asserts the current behaviour, so this may be deliberate — the prompt should
 still filter to `projectName`.
 
-### I-3 · Low · `angular.json` is read and parsed twice per run
+### I-3 · Low · ✅ FIXED · `angular.json` is read and parsed twice per run
+
+> **✅ Resolved in `9b62ad1`.** Read, parse and validation are shared in one `readAngularJson`. _Partial:_ the file is still read twice when the configuration picker runs (once to list, once to resolve) — one small read, kept to leave both public helpers path-based.
 
 `getAngularConfigurations` and `resolveAngularConfiguration` each read the file.
 
@@ -640,7 +729,9 @@ still filter to `projectName`.
 
 ## J. Security & hardening
 
-### J-1 · Medium · `runInShell(true)` with no quoting
+### J-1 · Medium · ✅ FIXED · `runInShell(true)` with no quoting
+
+> **✅ Resolved in `02e3e84`.** _Deviation:_ the shell is **kept** — the docs' own `command: 'npx ng build'` and Windows `.cmd` shims depend on it — and each argument is quoted for it instead (single quotes for POSIX, double for `cmd.exe`, which still expands `%VAR%`). Verified against a real shell, including a `;` injection attempt.
 
 `src/helpers/command.ts:10` → `spawn(cmd, args, { shell: true })` joins argv with spaces and no
 quoting. A `configurationName` or a `custom.build.args` entry containing a space is mis-split; one
@@ -648,21 +739,25 @@ containing `;` executes as a separate shell command. Both are user-controlled co
 
 **Fix:** drop `runInShell` unless a shell is genuinely required, or quote the arguments.
 
-### J-2 · Low · Source maps are published with a one-year cache
+### J-2 · Low · ✅ FIXED · Source maps are published with a one-year cache
+
+> **✅ Resolved in `eb22049`.** New `upload.exclude` regex list, empty by default; the docs show `'\\.map$'`. Source maps still upload unless excluded.
 
 `.map` files are uploaded publicly like anything else and fall into the `^.+$` catch-all (`E-2`).
 
-### J-3 · (see `A-3`) · Error dumps can carry file contents into CI logs
+### J-3 · (see `A-3`) · ✅ FIXED · Error dumps can carry file contents into CI logs
+
+> **✅ Resolved in `3b005e2`.** Fixed with `A-3`.
 
 ---
 
 ## K. Gaps — missing capability, not defects
 
-- **K-1** No ETag / content-hash comparison, so every deploy re-uploads the entire build.
-- **K-2** No pruning of stale objects; old hashed chunks accumulate forever, and with
+- **K-1** _(out of scope — feature work, not fixed)_ No ETag / content-hash comparison, so every deploy re-uploads the entire build.
+- **K-2** _(out of scope — feature work, not fixed)_ No pruning of stale objects; old hashed chunks accumulate forever, and with
   `errorDocumentKey: index.html` deleted routes keep resolving.
-- **K-3** No CDN invalidation hook after upload.
-- **K-4** `src/errors/prompt.ts` declares `PromptError`, which is never used anywhere.
+- **K-3** _(out of scope — feature work, not fixed)_ No CDN invalidation hook after upload.
+- **K-4** **✅ FIXED in `bf1cf95`** — `src/errors/prompt.ts` declares `PromptError`, which is never used anywhere.
 
 ---
 
@@ -670,7 +765,9 @@ containing `;` executes as a separate shell command. Both are user-controlled co
 
 Both surfaced while fixing the above; both are pre-existing and unrelated to the deploy path.
 
-### L-1 · Low · `format:all` fights `generate:readme` over the generated README
+### L-1 · Low · ✅ FIXED · `format:all` fights `generate:readme` over the generated README
+
+> **✅ Resolved in `bf1cf95`.** `README.md` is in `.prettierignore`.
 
 `bun run format:all` rewrites roughly 53 lines of `README.md` (`*` → `-` bullets, tabs → spaces,
 blank-line collapsing) that `bun run generate:readme` then puts straight back. `.prettierignore`
@@ -679,7 +776,9 @@ lists only `bun.lock`, so whichever script ran last wins and the file churns bet
 **Fix:** add `README.md` to `.prettierignore` — it is generated output and should not be
 hand-formatted.
 
-### L-2 · Low · `format:all` strips committed trailing commas from the tsconfig files
+### L-2 · Low · ✅ FIXED · `format:all` strips committed trailing commas from the tsconfig files
+
+> **✅ Resolved in `bf1cf95`.** The two tsconfigs are committed in prettier's form, matching the others. `prettier --list-different .` is empty and `format:all` is a no-op on a clean tree.
 
 It reformats `tsconfig.alias.json` and `tsconfig.declaration.json`, removing trailing commas the repo
 has committed, so anyone running `format:all` picks up unrelated diffs.
