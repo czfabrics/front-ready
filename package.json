@@ -53,7 +53,7 @@
   "bugs": {
     "url": "https://github.com/czfabrics/front-ready/issues"
   },
-  "description": "A framework-aware deployment tool for static frontends. It reads your project's build configuration (e.g. angular.json), runs the build with the configuration you choose, and pushes the compiled output to an S3 bucket — with correct content types and cache headers — so a single command takes you from source to a live, hosted site.",
+  "description": "A framework-aware deployment tool for static frontends. It reads your project's build configuration (e.g. angular.json, astro.config.mjs), runs the build with the configuration you choose, and pushes the compiled output to an S3 bucket — with correct content types and cache headers — so a single command takes you from source to a live, hosted site.",
   "files": [
     "package.json",
     "README.md",
@@ -76,6 +76,7 @@
     "spa",
     "build",
     "angular",
+    "astro",
     "ci-cd",
     "upload",
     "typescript",

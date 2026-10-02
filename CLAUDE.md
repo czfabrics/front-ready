@@ -29,13 +29,19 @@ Tests use Vitest, configured in `vitest.config.ts` with `watch: true` and
 ```sh
 bun run test                        # watch mode
 bunx vitest run                      # single pass (CI-style)
-bunx vitest run src/helpers/file.test.ts          # one file
+bunx vitest run src/helpers/astro.test.ts          # one file
 bunx vitest run -t "name of the test"             # one test by name
 bun run test:coverage
 ```
 
-Note: **no test files exist yet**. The vitest project is wired (including `tsconfig.alias.json`
-path resolution via `vite-tsconfig-paths`), so new `*.test.ts` files next to the code will be picked up.
+Coverage is thin: only `src/helpers/{astro,effect}.test.ts` exist. `*.test.ts` files live next to
+the code they cover and are picked up automatically (`tsconfig.alias.json` path resolution comes
+from `vite-tsconfig-paths`). They are type-checked by `bun run typecheck` (`tsconfig.json` includes
+`src/**/*.ts`) but excluded from the published `.d.ts` (`tsconfig.declaration.json` includes only
+`index.ts`).
+
+`astro.test.ts` `process.chdir`s into a temp directory per test, because c12 discovers
+`astro.config.*` relative to the cwd; restore the cwd in `afterEach` if you copy that pattern.
 
 ## Generated files — do not edit by hand
 
@@ -73,11 +79,13 @@ The three commands in `src/cli/` are structurally identical; copy one when addin
 4. Run the use case via `runAndInterruptOnCtrlC`, with `Effect.onInterrupt` → `cancel(...)` and
    `Effect.catchAll` → log + `outro(...)`. Commands never throw; they always end on an outro.
 
-### The two config shapes collapse into one context
+### The config shapes collapse into one context
 
 `src/factories/front_deployment_context.ts` is the key file. It `Match`es on `config.front.type`
 and produces a single `FrontDeploymentContext` — `{ command, bucketName, buildOutputPath,
-buildOutputHashing }` — so nothing downstream knows whether the project is Angular or custom:
+buildOutputHashing }` — so nothing downstream knows which framework the project uses. Adding a
+front type means a new member in the `front` discriminated union plus a new `Match.when` branch
+here; `Match.exhaustive` turns a forgotten branch into a typecheck error.
 
 - `custom`: command and output path come straight from config; `buildOutputHashing` is `undefined`
   (hence `check`'s "unable to determine" warning).
@@ -85,8 +93,14 @@ buildOutputHashing }` — so nothing downstream knows whether the project is Ang
   `architect` and `targets`, both the string and the `{ base, browser }` forms of `outputPath`, and
   the `:application` builder's implicit `/browser` suffix). If `configurationName` is absent from
   config, this factory interactively prompts for one and mutates `config.angular.configurationName`.
+- `astro`: `src/helpers/astro.ts` loads `astro.config.*` through **c12** (not `FileSystem` — the
+  config is JS/TS, so it has to be executed; c12 runs jiti, and `configFileRequired: true` turns a
+  missing file into a `ConfigWrapperError`). It reads `outDir` (default `./dist`) and falls back to
+  `build.client` inside it when `output` isn't `'static'`. `buildOutputHashing` is the constant
+  `'all'`: Astro exposes no option to disable Vite's content-hashed `_astro/[name].[hash].js`.
+  `mode` is required — unlike `angular.json`, nothing enumerates Astro modes, so there is no prompt.
 
-The bucket name is always `${namePrefix}-${configurationName | environmentName}`
+The bucket name is always `${namePrefix}-${configurationName | mode | environmentName}`
 (`src/factories/bucket_name.ts`), i.e. one bucket per environment.
 
 ### Layer stack
@@ -113,7 +127,7 @@ deploy UI one progress group per top-level folder.
 
 ### Deploy ordering invariant
 
-`DeployOnBucketUseCase` uploads everything *except* the index document first (grouped,
+`DeployOnBucketUseCase` uploads everything _except_ the index document first (grouped,
 concurrency from `config.bucket.upload.concurrency`), then uploads the index document alone.
 `pickIndexDocument` in `src/helpers/file.ts` splits it out. This is deliberate: the new
 `index.html` must only become reachable after the hashed chunks it references exist. Preserve it.

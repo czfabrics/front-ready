@@ -115,6 +115,13 @@ export const ConfigSchema = z.object({
       }),
     }),
     z.object({
+      type: z.literal('astro'),
+      astro: z.object({
+        astroConfigPath: z.string().nonempty().optional(),
+        mode: z.string().nonempty(),
+      }),
+    }),
+    z.object({
       type: z.literal('custom'),
       custom: z.object({
         build: z.object({
