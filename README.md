@@ -62,19 +62,19 @@ A framework-aware deployment tool for static frontends. It reads your project's 
 ### Bun
 
 ```sh
-bun add @czfabrics/front-ready@0.1.0-beta.4
+bun add @czfabrics/front-ready@0.1.0-beta.5
 ```
 
 ### Yarn
 
 ```sh
-yarn add @czfabrics/front-ready@0.1.0-beta.4
+yarn add @czfabrics/front-ready@0.1.0-beta.5
 ```
 
 ### NPM
 
 ```sh
-npm install @czfabrics/front-ready@0.1.0-beta.4
+npm install @czfabrics/front-ready@0.1.0-beta.5
 ```
 
 
