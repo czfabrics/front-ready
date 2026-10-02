@@ -2,6 +2,7 @@ import { InternalConfig } from '#config/schema'
 import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { makeDeploymentBucketName } from '#factories/bucket_name'
 import { getAngularConfigurations, resolveAngularConfiguration } from '#helpers/angular'
+import { resolveAstroConfiguration } from '#helpers/astro'
 import { genSelectUi } from '#ui/select'
 import { log } from '@clack/prompts'
 import { Command } from '@effect/platform'
@@ -42,11 +43,42 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
           )
 
           return {
-            command: Command.make('ng', 'build', config.angular.configurationName),
+            // `ng build`'s positional argument is the project, not the configuration:
+            // the latter only ever arrives through `--configuration`.
+            command: Command.make(
+              'ng',
+              'build',
+              config.angular.projectName,
+              '--configuration',
+              config.angular.configurationName
+            ),
             bucketName: makeDeploymentBucketName(
               rootConfig,
               config.angular.configurationName
             ),
+            buildOutputPath: outputPath,
+            buildOutputHashing: outputHashing,
+          }
+        })
+      ),
+      Match.when({ type: 'astro' }, (config) =>
+        Effect.gen(function* () {
+          const { outputPath, outputHashing } = yield* resolveAstroConfiguration(
+            config.astro.astroConfigPath
+          )
+
+          return {
+            command: Command.make(
+              'astro',
+              'build',
+              '--mode',
+              config.astro.mode,
+              // Keep the build pointed at the very config file we just parsed.
+              ...(config.astro.astroConfigPath
+                ? ['--config', config.astro.astroConfigPath]
+                : [])
+            ),
+            bucketName: makeDeploymentBucketName(rootConfig, config.astro.mode),
             buildOutputPath: outputPath,
             buildOutputHashing: outputHashing,
           }

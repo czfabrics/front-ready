@@ -93,6 +93,7 @@ export const ConfigSchema = z.object({
               'max-age=86400, stale-while-revalidate=600, stale-if-error=86400',
             '^translate/.+$':
               'max-age=14400, stale-while-revalidate=600, stale-if-error=86400',
+            '^.+\\.html$': 'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
             '^.+$': 'max-age=31536000, stale-while-revalidate=600, stale-if-error=86400',
           }),
         indexDocumentSuffix: z.string().nonempty().default('index.html'),
@@ -112,6 +113,13 @@ export const ConfigSchema = z.object({
         projectName: z.string().nonempty(),
         angularJsonPath: z.string().nonempty(),
         configurationName: z.string().nonempty().optional(),
+      }),
+    }),
+    z.object({
+      type: z.literal('astro'),
+      astro: z.object({
+        astroConfigPath: z.string().nonempty().optional(),
+        mode: z.string().nonempty(),
       }),
     }),
     z.object({

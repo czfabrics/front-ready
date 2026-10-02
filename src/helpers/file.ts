@@ -92,12 +92,18 @@ const walkFiles = function* (components: Iterable<FileComponent>): Generator<Fil
   }
 }
 
-export const extractFile = genFn(function* (
+/**
+ * Matches on the whole root-relative path, never on a suffix: a multi-page build
+ * (every Astro static site, Angular with prerendering) holds a nested `index.html`
+ * per route, and `walkFiles` iterates in hash order, so a suffix match would pick an
+ * arbitrary one of them.
+ */
+export const extractFileByRelativePath = genFn(function* (
   components: Iterable<FileComponent>,
-  pathSuffix: string
+  relativePath: string
 ) {
   for (const file of walkFiles(components)) {
-    if (file.relativePath.endsWith(pathSuffix)) {
+    if (file.relativePath === relativePath) {
       return file
     }
   }
@@ -105,7 +111,7 @@ export const extractFile = genFn(function* (
   return yield* Effect.fail(
     new FileNotFoundError({
       message: `File not found`,
-      file: { relativePath: `${pathSuffix}$` },
+      file: { relativePath },
     })
   )
 })
@@ -135,7 +141,7 @@ export const excludeFiles = function (
 export const pickIndexDocument = genFn(function* (components: Iterable<FileComponent>) {
   const config = yield* InternalConfigContext
 
-  const indexDocument = yield* extractFile(
+  const indexDocument = yield* extractFileByRelativePath(
     components,
     config.bucket.front.indexDocumentSuffix
   )

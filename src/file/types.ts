@@ -7,6 +7,27 @@ import { FileSystem } from '@effect/platform/FileSystem'
 import { Effect, Equal, Hash } from 'effect'
 import { lookup } from 'mrmime'
 
+const UNKNOWN_CONTENT_TYPE = 'application/octet-stream'
+const EXTENSIONLESS_CONTENT_TYPE = 'text/plain'
+
+/**
+ * `mrmime` answers on the extension, and on a bare filename that happens to be one.
+ * When it has no answer at all, the fallback depends on whether there is an
+ * extension to fail on: an extensionless file in a static web build is
+ * overwhelmingly text (`_headers`, `_redirects`, `CNAME`, `LICENSE`), and serving it
+ * as `application/octet-stream` turns it into a download. An unknown *extension*
+ * carries no such hint, so it keeps the opaque binary default.
+ */
+const resolveContentType = function (name: string, extension: string): string {
+  const resolved = lookup(extension) ?? lookup(name)
+
+  if (resolved !== undefined) {
+    return resolved
+  }
+
+  return extension === '' ? EXTENSIONLESS_CONTENT_TYPE : UNKNOWN_CONTENT_TYPE
+}
+
 const FileItemTypeId: unique symbol = Symbol.for('FileItem')
 type FileItemTypeId = typeof FileItemTypeId
 
@@ -47,7 +68,7 @@ export const FileItem = {
         content: content,
         get contentType() {
           return toEffectSync(
-            () => lookup(extension) ?? 'application/octet-stream',
+            () => resolveContentType(name, extension),
             FileTypeWrapperError,
             {
               file: this,

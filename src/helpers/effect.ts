@@ -23,6 +23,21 @@ export const toEffectSync = function <TData, TError extends Error, TAdditionalDa
   )
 }
 
+/**
+ * `Effect.tryPromise` wraps the rejection in an `UnknownException` whose own
+ * `message` is the generic "An unknown error occurred in Effect.tryPromise". The
+ * reason the third party actually gave us lives on `.error`, so read it from
+ * there — otherwise every interop error renders as that same useless sentence.
+ */
+const resolveThrownMessage = function (error: UnknownException): string {
+  const thrown = error.error
+
+  if (thrown instanceof Error && thrown.message) return thrown.message
+  if (typeof thrown === 'string' && thrown) return thrown
+
+  return error.message
+}
+
 export const toEffect = function <TData, TError extends Error, TAdditionalData>(
   promise: Promise<TData>,
   errorClass: PromiseIntoEffectErrorConstructor<TError, TAdditionalData>,
@@ -32,7 +47,7 @@ export const toEffect = function <TData, TError extends Error, TAdditionalData>(
     Effect.tryPromise(() => promise),
     (error) =>
       new errorClass({
-        message: error.message,
+        message: resolveThrownMessage(error),
         cause: error,
         ...additionalData,
       })
