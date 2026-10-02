@@ -12,10 +12,11 @@ export const genConfirmUi = function ({
 }) {
   return interruptOnPromptCancel(
     toEffect(
-      confirm({
-        message: question,
-        initialValue,
-      }),
+      () =>
+        confirm({
+          message: question,
+          initialValue,
+        }),
       TUiWrapperError,
       {
         uiFunction: 'confirm',

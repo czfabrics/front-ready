@@ -69,7 +69,9 @@ Everything runs inside **Effect** (effect-ts v3). `main.ts` wraps `cmd-ts`' `run
 and hands it to `NodeRuntime.runMain` with `NodeContext.layer` (which supplies `FileSystem`, `Path`
 and `Command` from `@effect/platform-node`).
 
-The three commands in `src/cli/` are structurally identical; copy one when adding a fourth:
+The three commands in `src/cli/` are thin: each names its use case and its outro wording and hands
+them to `runCliCommand` (`src/cli/command_runner.ts`), which owns the shared lifecycle. Add a fourth
+the same way:
 
 1. `Layer.succeed(CliCommandContext, { commandName })`.
 2. `startCli()` prints the intro banner and loads config (`c12` finds `frontready.config.*` in the
@@ -77,7 +79,9 @@ The three commands in `src/cli/` are structurally identical; copy one when addin
 3. Build two layers from the parsed config: `InternalConfigContext` (raw validated config) and
    `makeFrontDeploymentContextLayer(config)`.
 4. Run the use case via `runAndInterruptOnCtrlC`, with `Effect.onInterrupt` → `cancel(...)` and
-   `Effect.catchAll` → log + `outro(...)`. Commands never throw; they always end on an outro.
+   `Effect.catchAll` → log + `outro(...)`. Config loading sits inside that same handling. Commands
+   never throw; they always end on an outro, and report the outcome through the exit code:
+   `0` success, `1` failure, `130` cancellation.
 
 ### The config shapes collapse into one context
 
@@ -142,9 +146,11 @@ Content type comes from `mrmime` on the extension; `Cache-Control` from the firs
 nicely (e.g. `z.prettifyError`). `src/errors/interop/` holds the wrappers used specifically at
 third-party promise boundaries (c12, clack, mrmime); keep that distinction when adding one.
 
-**Promise → Effect** — never call `Effect.tryPromise` directly. Use `toEffect(promise, ErrorClass,
-extraData)` / `toEffectSync(fn, ...)` from `#helpers/effect`, which maps the rejection into a tagged
-error with its context attached.
+**Promise → Effect** — never call `Effect.tryPromise` directly. Use `toEffect((signal) => promise,
+ErrorClass, extraData)` / `toEffectSync(fn, ...)` from `#helpers/effect`, which maps the rejection
+into a tagged error with its context attached. `toEffect` takes a function, never a promise, so the
+work starts when the effect runs; pass `signal` on to anything that accepts one (every S3 `send`
+gets `{ abortSignal: signal }`) so interruption actually stops it.
 
 **`genFn`** — `#helpers/effect`'s wrapper for generator functions that take arguments; it infers
 `Effect<A, E, R>` from the yielded effects where a bare `Effect.gen` closure can't. Used throughout

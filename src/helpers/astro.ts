@@ -78,11 +78,12 @@ export const resolveAstroConfiguration = genFn(function* (astroConfigPath?: stri
   const path = yield* Path.Path
 
   const { config } = yield* toEffect(
-    c12LoadConfig<AstroConfig>({
-      name: 'astro',
-      configFile: astroConfigPath,
-      configFileRequired: true,
-    }),
+    () =>
+      c12LoadConfig<AstroConfig>({
+        name: 'astro',
+        configFile: astroConfigPath,
+        configFileRequired: true,
+      }),
     ConfigWrapperError,
     {}
   )

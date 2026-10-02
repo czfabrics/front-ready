@@ -9,20 +9,6 @@ type PromiseIntoEffectErrorConstructor<TError extends Error, TAdditionalData> = 
   } & TAdditionalData
 ) => TError
 
-export const toEffectSync = function <TData, TError extends Error, TAdditionalData>(
-  fn: () => TData,
-  errorClass: PromiseIntoEffectErrorConstructor<TError, TAdditionalData>,
-  additionalData: TAdditionalData
-): Effect.Effect<TData, TError> {
-  return toEffect(
-    new Promise<TData>((resolve) => {
-      resolve(fn())
-    }),
-    errorClass,
-    additionalData
-  )
-}
-
 /**
  * `Effect.tryPromise` wraps the rejection in an `UnknownException` whose own
  * `message` is the generic "An unknown error occurred in Effect.tryPromise". The
@@ -38,13 +24,40 @@ const resolveThrownMessage = function (error: UnknownException): string {
   return error.message
 }
 
+export const toEffectSync = function <TData, TError extends Error, TAdditionalData>(
+  fn: () => TData,
+  errorClass: PromiseIntoEffectErrorConstructor<TError, TAdditionalData>,
+  additionalData: TAdditionalData
+): Effect.Effect<TData, TError> {
+  return Effect.try({
+    try: fn,
+    catch: (thrown) => {
+      const error = new UnknownException(thrown)
+
+      return new errorClass({
+        message: resolveThrownMessage(error),
+        cause: error,
+        ...additionalData,
+      })
+    },
+  })
+}
+
+/**
+ * Takes a function rather than a promise, so the work starts when the effect
+ * runs — not when it is built. A promise passed in directly is already in
+ * flight: retrying the effect would only replay its settled result, building it
+ * on a branch that never runs would leave an unhandled rejection, and nothing
+ * could stop it. The `signal` aborts on interruption; hand it to any API that
+ * takes one.
+ */
 export const toEffect = function <TData, TError extends Error, TAdditionalData>(
-  promise: Promise<TData>,
+  evaluate: (signal: AbortSignal) => PromiseLike<TData>,
   errorClass: PromiseIntoEffectErrorConstructor<TError, TAdditionalData>,
   additionalData: TAdditionalData
 ): Effect.Effect<TData, TError> {
   return Effect.mapError(
-    Effect.tryPromise(() => promise),
+    Effect.tryPromise((signal) => Promise.resolve(evaluate(signal))),
     (error) =>
       new errorClass({
         message: resolveThrownMessage(error),

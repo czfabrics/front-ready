@@ -93,22 +93,30 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
               : {}),
           })
 
-          yield* toEffect(apiInstance.send(command), FileObjectError, {
-            context,
-            commandName: 'CreateBucket',
-            file: {},
-          })
+          yield* toEffect(
+            (signal) => apiInstance.send(command, { abortSignal: signal }),
+            FileObjectError,
+            {
+              context,
+              commandName: 'CreateBucket',
+              file: {},
+            }
+          )
         }),
         doesBucketExist: genFn(function* () {
           const command = new HeadBucketCommand({
             Bucket: context.bucketName,
           })
 
-          return yield* toEffect(apiInstance.send(command), FileObjectError, {
-            context,
-            commandName: 'HeadBucket',
-            file: {},
-          }).pipe(
+          return yield* toEffect(
+            (signal) => apiInstance.send(command, { abortSignal: signal }),
+            FileObjectError,
+            {
+              context,
+              commandName: 'HeadBucket',
+              file: {},
+            }
+          ).pipe(
             Effect.as(true),
             Effect.catchIf(isNotFound, () => Effect.succeed(false))
           )
@@ -120,11 +128,15 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
               ACL: 'public-read',
             })
 
-            return yield* toEffect(apiInstance.send(command), FileObjectError, {
-              context,
-              commandName: 'PutBucketAcl',
-              file: {},
-            })
+            return yield* toEffect(
+              (signal) => apiInstance.send(command, { abortSignal: signal }),
+              FileObjectError,
+              {
+                context,
+                commandName: 'PutBucketAcl',
+                file: {},
+              }
+            )
           }
 
           // New AWS buckets block public access outright, which would refuse the
@@ -139,11 +151,15 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             },
           })
 
-          yield* toEffect(apiInstance.send(unblockCommand), FileObjectError, {
-            context,
-            commandName: 'PutPublicAccessBlock',
-            file: {},
-          })
+          yield* toEffect(
+            (signal) => apiInstance.send(unblockCommand, { abortSignal: signal }),
+            FileObjectError,
+            {
+              context,
+              commandName: 'PutPublicAccessBlock',
+              file: {},
+            }
+          )
 
           const policyCommand = new PutBucketPolicyCommand({
             Bucket: context.bucketName,
@@ -161,11 +177,15 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             }),
           })
 
-          yield* toEffect(apiInstance.send(policyCommand), FileObjectError, {
-            context,
-            commandName: 'PutBucketPolicy',
-            file: {},
-          })
+          yield* toEffect(
+            (signal) => apiInstance.send(policyCommand, { abortSignal: signal }),
+            FileObjectError,
+            {
+              context,
+              commandName: 'PutBucketPolicy',
+              file: {},
+            }
+          )
         }),
         setWebsiteConfigurationOnBucket: genFn(function* (
           indexFileKeySuffix: string,
@@ -183,11 +203,15 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             },
           })
 
-          yield* toEffect(apiInstance.send(command), FileObjectError, {
-            context,
-            commandName: 'PutBucketWebsite',
-            file: {},
-          })
+          yield* toEffect(
+            (signal) => apiInstance.send(command, { abortSignal: signal }),
+            FileObjectError,
+            {
+              context,
+              commandName: 'PutBucketWebsite',
+              file: {},
+            }
+          )
         }),
         putObject: genFn(function* (file: FileObject) {
           const command = new PutObjectCommand({
@@ -200,13 +224,17 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             CacheControl: file.cacheControlValue,
           })
 
-          yield* toEffect(apiInstance.send(command), FileObjectError, {
-            context,
-            commandName: 'PutObject',
-            // Never the whole `file`: `content` would put the entire uploaded
-            // payload into the error, and from there into the terminal.
-            file: describeFileObject(file),
-          })
+          yield* toEffect(
+            (signal) => apiInstance.send(command, { abortSignal: signal }),
+            FileObjectError,
+            {
+              context,
+              commandName: 'PutObject',
+              // Never the whole `file`: `content` would put the entire uploaded
+              // payload into the error, and from there into the terminal.
+              file: describeFileObject(file),
+            }
+          )
         }),
         readObject: genFn(function* (objectKey: string) {
           const command = new GetObjectCommand({
@@ -214,13 +242,18 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             Key: objectKey,
           })
 
-          const result = yield* toEffect(apiInstance.send(command), FileObjectError, {
-            context,
-            commandName: 'GetObject',
-            file: { key: objectKey },
-          })
+          const result = yield* toEffect(
+            (signal) => apiInstance.send(command, { abortSignal: signal }),
+            FileObjectError,
+            {
+              context,
+              commandName: 'GetObject',
+              file: { key: objectKey },
+            }
+          )
 
-          if (result.Body === undefined) {
+          const body = result.Body
+          if (body === undefined) {
             return yield* Effect.fail(
               new FileObjectError({
                 message: 'Bucket returns undefined response',
@@ -231,7 +264,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             )
           }
 
-          return yield* toEffect(result.Body.transformToByteArray(), FileObjectError, {
+          return yield* toEffect(() => body.transformToByteArray(), FileObjectError, {
             context,
             commandName: 'GetObject',
             file: { key: objectKey },
@@ -250,7 +283,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
                   })
 
                   const result = yield* toEffect(
-                    apiInstance.send(command),
+                    (signal) => apiInstance.send(command, { abortSignal: signal }),
                     FileObjectError,
                     { context, commandName: 'ListObjectsV2', file: {} }
                   )

@@ -7,10 +7,11 @@ import { Effect } from 'effect'
 
 export const loadConfig = genFn(function* () {
   const { config } = yield* toEffect(
-    c12LoadConfig<Config>({
-      name: 'frontready',
-      configFileRequired: true,
-    }),
+    () =>
+      c12LoadConfig<Config>({
+        name: 'frontready',
+        configFileRequired: true,
+      }),
     ConfigWrapperError,
     {}
   )

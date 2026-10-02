@@ -12,10 +12,11 @@ export const genSelectUi = function <TValue>({
 }) {
   return interruptOnPromptCancel(
     toEffect(
-      select({
-        message,
-        options,
-      }),
+      () =>
+        select({
+          message,
+          options,
+        }),
       TUiWrapperError,
       {
         uiFunction: 'select',
