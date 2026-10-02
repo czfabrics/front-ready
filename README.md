@@ -37,6 +37,7 @@
 	* [Create](#create)
 	* [Check](#check)
 	* [Deploy](#deploy)
+	* [Exit codes](#exit-codes)
 * [License](#license)
 
 [![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/dark.png)](#overview)
@@ -115,7 +116,7 @@ export default {
 } satisfies Config
 ```
 
-> **Tip:** Don't commit real credentials. Load `accessKeyId` and `secretAccessKey` from environment variables instead.
+> **Tip:** Don't commit real credentials. Either read them from the environment — a `.env` file next to the config is loaded into `process.env` first — or leave `credentials` out entirely, and the AWS SDK's default credential chain (environment variables, shared config files, an instance or IRSA role) supplies them. `endpoint` and `apiVersion` are optional too: omit `endpoint` for AWS S3.
 
 ### Commands
 
@@ -284,15 +285,33 @@ added in Astro 5.0 — on Astro 4 and earlier the build fails on the unknown fla
 Options `frontready` doesn't need — `site`, `integrations`, `vite`, and the rest — are ignored, so
 the config doesn't have to be trimmed down.
 
-> **Tip:** Don't hardcode real credentials. Load `accessKeyId` and `secretAccessKey` from environment variables instead.
+> **Tip:** Don't commit real credentials. Either read them from the environment — a `.env` file next to the config is loaded into `process.env` first — or leave `credentials` out entirely, and the AWS SDK's default credential chain (environment variables, shared config files, an instance or IRSA role) supplies them. `endpoint` and `apiVersion` are optional too: omit `endpoint` for AWS S3.
 
 ### Cache control
 
 The default cache configuration assumes your build emits **content-hashed (randomly named) chunk files** — the standard cache-busting pattern where a file's name changes whenever its contents change. This lets hashed assets be cached aggressively while the entry point stays fresh.
 
-Patterns are tried in order and the first match wins, so the `^.+$` catch-all at the end is what gives hashed assets their one-year cache. The `^.+\.html$` rule sits just above it so that **every** page — not only the root `index.html` — keeps the short cache: a multi-page build (any Astro static site, or Angular with prerendering) emits `about/index.html`, `blog/post/index.html`, and those must never be pinned for a year.
+Each object key is tested against the `cacheControlMapping` patterns in order, and the first match wins; nothing matching falls back to `defaultCacheControlValue`. The defaults are:
 
-If your build tool doesn't hash filenames this way, override `defaultCacheControlValue` (and `cacheControlMapping`) so you don't serve stale assets:
+| Pattern          | `Cache-Control`                                                                 |
+| ---------------- | ------------------------------------------------------------------------------- |
+| `^index\.html$`  | `max-age=60, stale-while-revalidate=600, stale-if-error=86400`                  |
+| `^assets/.+$`    | `max-age=86400, stale-while-revalidate=600, stale-if-error=86400`               |
+| `^translate/.+$` | `max-age=14400, stale-while-revalidate=600, stale-if-error=86400`               |
+| `^.+\.html$`     | `max-age=60, stale-while-revalidate=600, stale-if-error=86400`                  |
+| `^.+$`           | `max-age=31536000, immutable, stale-while-revalidate=600, stale-if-error=86400` |
+
+The `^.+\.html$` rule keeps **every** page on the short cache — not only the root `index.html` — since a multi-page build (any Astro static site, or Angular with prerendering) emits `about/index.html` and the like, which must never be pinned for a year. Everything else falls to the `^.+$` catch-all: a hashed chunk, cached for a year and marked `immutable`.
+
+Your `cacheControlMapping` is **merged** with the defaults rather than replacing them:
+
+- a new pattern is tried **before** the defaults, in the order you write them;
+- a default's pattern overrides its value **in place**, so overriding `^.+$` keeps it last;
+- `null` removes a default.
+
+Patterns are regular expressions tested against the object key — anchor them with `^` and `$` when you mean the whole key. A pattern that does not compile, or a value with an unknown, repeated or contradictory directive (`no-store` with `max-age`, `public` with `private`, …), is rejected when the config loads, before anything is uploaded.
+
+If your build tool doesn't hash filenames this way, shorten the catch-all so you don't serve stale assets:
 
 ```ts
 import { Config } from '@czfabrics/front-ready'
@@ -300,21 +319,18 @@ import { Config } from '@czfabrics/front-ready'
 export default {
   bucket: {
     front: {
-      defaultCacheControlValue:
-        'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
       cacheControlMapping: {
-        '^index.html$': 'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
-        '^assets/.+$': 'max-age=86400, stale-while-revalidate=600, stale-if-error=86400',
-        '^translate/.+$':
-          'max-age=14400, stale-while-revalidate=600, stale-if-error=86400',
-        '^.+\\.html$': 'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
-        '^.+$': 'max-age=31536000, stale-while-revalidate=600, stale-if-error=86400',
+        '^fonts/.+$': 'max-age=604800', // added: tried before the defaults
+        '^.+$': 'max-age=3600', // overridden in place: still the last rule
+        '^translate/.+$': null, // removed
       },
       indexDocumentSuffix: 'index.html',
       errorDocumentKey: 'index.html',
     },
+    accessMode: 'acl', // or 'policy' for AWS S3 — see "Create" below
     upload: {
-      concurrency: 50,
+      concurrency: 50, // the cap on files in flight, across every folder at once
+      exclude: ['\\.map$'], // keys not to upload — here, source maps
     },
   },
 } satisfies Config
@@ -329,7 +345,16 @@ Run the CLI with your package manager's runner — `bunx`, `yarn dlx`, or `npx`.
 
 ### Create
 
-Creates the bucket and prepares it for static hosting: sets `BucketOwnerEnforced` object ownership, makes the bucket publicly readable, and adds the static website configuration.
+Creates the bucket and prepares it for static hosting: makes it publicly readable — through ACLs, or through a bucket policy with `accessMode: 'policy'` — and adds the static website configuration. Running it against a bucket that already exists is a no-op.
+
+How the bucket is made publicly readable depends on `bucket.accessMode`:
+
+| `accessMode`      | Bucket                                                            | Objects                | Use with                               |
+| ----------------- | ----------------------------------------------------------------- | ---------------------- | -------------------------------------- |
+| `'acl'` (default) | `public-read` bucket ACL                                          | `public-read` ACL each | Most S3-compatible providers           |
+| `'policy'`        | `BucketOwnerEnforced`, Block Public Access lifted, read by policy | No ACL                 | AWS S3, which disables ACLs by default |
+
+AWS rejects ACLs on a bucket whose ACLs are disabled — the default for new AWS buckets — so use `'policy'` there.
 
 ```sh
 bunx @czfabrics/front-ready create      # Bun
@@ -340,6 +365,8 @@ npx @czfabrics/front-ready create       # npm
 ### Check
 
 Verifies that your build produces randomly named (content-hashed) chunk files, which the default cache configuration relies on. Also checks that the configured bucket exists and that it contains at least one object.
+
+Every check reports, then `check` exits non-zero if the bucket does not exist — so it can gate a CI pipeline ahead of `deploy`.
 
 ```sh
 bunx @czfabrics/front-ready check      # Bun
@@ -356,6 +383,16 @@ bunx @czfabrics/front-ready deploy      # Bun
 yarn dlx @czfabrics/front-ready deploy  # Yarn
 npx @czfabrics/front-ready deploy       # npm
 ```
+
+### Exit codes
+
+Every command ends on an outro and reports its outcome through the exit code, so CI can trust it:
+
+| Code  | Meaning                                                                  |
+| ----- | ------------------------------------------------------------------------ |
+| `0`   | Success — including `create` on a bucket that already exists             |
+| `1`   | Failure — invalid config, build failure, upload error, missing bucket, … |
+| `130` | Cancelled — a prompt was declined (or escaped), or Ctrl-C was pressed    |
 
 
 [![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/dark.png)](#license)

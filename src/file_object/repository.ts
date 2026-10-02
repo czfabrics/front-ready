@@ -1,18 +1,21 @@
 import { FileObjectBucketContext } from '#contexts/file_object_bucket'
-import { FileObjectError } from '#errors/file_object'
+import { FileObjectDescription, FileObjectError } from '#errors/file_object'
 import {
   FileObjectApiInstance,
   FileObjectApiInstanceLive,
 } from '#file_object/api_instance'
 import { genFn, toEffect } from '#helpers/effect'
 import {
+  BucketLocationConstraint,
   CreateBucketCommand,
   GetObjectCommand,
   HeadBucketCommand,
   ListObjectsV2Command,
   PutBucketAclCommand,
+  PutBucketPolicyCommand,
   PutBucketWebsiteCommand,
   PutObjectCommand,
+  PutPublicAccessBlockCommand,
 } from '@aws-sdk/client-s3'
 import { Effect } from 'effect'
 
@@ -21,6 +24,47 @@ export type FileObject = {
   content: Uint8Array<ArrayBufferLike>
   contentType: string
   cacheControlValue: string | undefined
+}
+
+/**
+ * Everything about an object except its bytes, for error contexts: a
+ * `FileObject` carries the whole upload payload, which has no business being
+ * rendered to a terminal or a CI log.
+ */
+const describeFileObject = function (file: FileObject): FileObjectDescription {
+  return {
+    key: file.key,
+    contentType: file.contentType,
+    cacheControlValue: file.cacheControlValue,
+  }
+}
+
+/**
+ * AWS rejects `LocationConstraint: 'us-east-1'` with `InvalidLocationConstraint`:
+ * the default region is expressed by leaving the field out.
+ */
+const DEFAULT_AWS_REGION = 'us-east-1'
+
+/**
+ * Only a 404 means the bucket is not there. A 403 (it exists, but these
+ * credentials may not see it), a wrong endpoint, a DNS failure or expired keys
+ * are real errors and must surface as such — not as "does not exist".
+ */
+const isNotFound = function (error: FileObjectError): boolean {
+  const thrown: unknown = error.cause?.error
+
+  if (typeof thrown !== 'object' || thrown === null) {
+    return false
+  }
+
+  const name = 'name' in thrown ? thrown.name : undefined
+  const metadata = '$metadata' in thrown ? thrown.$metadata : undefined
+  const statusCode =
+    typeof metadata === 'object' && metadata !== null && 'httpStatusCode' in metadata
+      ? metadata.httpStatusCode
+      : undefined
+
+  return name === 'NotFound' || name === 'NoSuchBucket' || statusCode === 404
 }
 
 export class FileObjectRepository extends Effect.Service<FileObjectRepository>()(
@@ -34,48 +78,114 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
         createBucket: genFn(function* () {
           const command = new CreateBucketCommand({
             Bucket: context.bucketName,
-            CreateBucketConfiguration: {
-              LocationConstraint: context.region,
-            },
-            ObjectOwnership: 'BucketOwnerEnforced',
+            ...(context.region === DEFAULT_AWS_REGION
+              ? {}
+              : {
+                  CreateBucketConfiguration: {
+                    // Every region but the default one is a valid constraint.
+                    LocationConstraint: context.region as BucketLocationConstraint,
+                  },
+                }),
+            // Disabling ACLs only makes sense when read is granted by a policy: in
+            // `'acl'` mode the very next calls set `public-read` ACLs.
+            ...(context.accessMode === 'policy'
+              ? { ObjectOwnership: 'BucketOwnerEnforced' as const }
+              : {}),
           })
 
-          yield* toEffect(apiInstance.send(command), FileObjectError, {
-            context,
-            command,
-            file: {},
-          })
+          yield* toEffect(
+            (signal) => apiInstance.send(command, { abortSignal: signal }),
+            FileObjectError,
+            {
+              context,
+              commandName: 'CreateBucket',
+              file: {},
+            }
+          )
         }),
         doesBucketExist: genFn(function* () {
           const command = new HeadBucketCommand({
             Bucket: context.bucketName,
           })
 
-          const doesExist = yield* Effect.matchEffect(
-            toEffect(apiInstance.send(command), FileObjectError, {
-              context,
-              command,
-              file: {},
-            }),
+          return yield* toEffect(
+            (signal) => apiInstance.send(command, { abortSignal: signal }),
+            FileObjectError,
             {
-              onFailure: () => Effect.succeed(false),
-              onSuccess: () => Effect.succeed(true),
+              context,
+              commandName: 'HeadBucket',
+              file: {},
+            }
+          ).pipe(
+            Effect.as(true),
+            Effect.catchIf(isNotFound, () => Effect.succeed(false))
+          )
+        }),
+        grantPublicRead: genFn(function* () {
+          if (context.accessMode === 'acl') {
+            const command = new PutBucketAclCommand({
+              Bucket: context.bucketName,
+              ACL: 'public-read',
+            })
+
+            return yield* toEffect(
+              (signal) => apiInstance.send(command, { abortSignal: signal }),
+              FileObjectError,
+              {
+                context,
+                commandName: 'PutBucketAcl',
+                file: {},
+              }
+            )
+          }
+
+          // New AWS buckets block public access outright, which would refuse the
+          // policy below; lift the block before granting read.
+          const unblockCommand = new PutPublicAccessBlockCommand({
+            Bucket: context.bucketName,
+            PublicAccessBlockConfiguration: {
+              BlockPublicAcls: false,
+              IgnorePublicAcls: false,
+              BlockPublicPolicy: false,
+              RestrictPublicBuckets: false,
+            },
+          })
+
+          yield* toEffect(
+            (signal) => apiInstance.send(unblockCommand, { abortSignal: signal }),
+            FileObjectError,
+            {
+              context,
+              commandName: 'PutPublicAccessBlock',
+              file: {},
             }
           )
 
-          return doesExist
-        }),
-        setPublicReadAclOnBucket: genFn(function* () {
-          const command = new PutBucketAclCommand({
+          const policyCommand = new PutBucketPolicyCommand({
             Bucket: context.bucketName,
-            ACL: 'public-read',
+            Policy: JSON.stringify({
+              Version: '2012-10-17',
+              Statement: [
+                {
+                  Sid: 'PublicReadGetObject',
+                  Effect: 'Allow',
+                  Principal: '*',
+                  Action: 's3:GetObject',
+                  Resource: `arn:aws:s3:::${context.bucketName}/*`,
+                },
+              ],
+            }),
           })
 
-          yield* toEffect(apiInstance.send(command), FileObjectError, {
-            context,
-            command,
-            file: {},
-          })
+          yield* toEffect(
+            (signal) => apiInstance.send(policyCommand, { abortSignal: signal }),
+            FileObjectError,
+            {
+              context,
+              commandName: 'PutBucketPolicy',
+              file: {},
+            }
+          )
         }),
         setWebsiteConfigurationOnBucket: genFn(function* (
           indexFileKeySuffix: string,
@@ -93,28 +203,38 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             },
           })
 
-          yield* toEffect(apiInstance.send(command), FileObjectError, {
-            context,
-            command,
-            file: {},
-          })
+          yield* toEffect(
+            (signal) => apiInstance.send(command, { abortSignal: signal }),
+            FileObjectError,
+            {
+              context,
+              commandName: 'PutBucketWebsite',
+              file: {},
+            }
+          )
         }),
         putObject: genFn(function* (file: FileObject) {
           const command = new PutObjectCommand({
-            ACL: 'public-read',
+            // A `BucketOwnerEnforced` bucket rejects any ACL other than the owner's.
+            ...(context.accessMode === 'acl' ? { ACL: 'public-read' as const } : {}),
             Bucket: context.bucketName,
             Key: file.key,
             Body: file.content,
-            ContentEncoding: 'binary',
             ContentType: file.contentType,
             CacheControl: file.cacheControlValue,
           })
 
-          yield* toEffect(apiInstance.send(command), FileObjectError, {
-            context,
-            command,
-            file,
-          })
+          yield* toEffect(
+            (signal) => apiInstance.send(command, { abortSignal: signal }),
+            FileObjectError,
+            {
+              context,
+              commandName: 'PutObject',
+              // Never the whole `file`: `content` would put the entire uploaded
+              // payload into the error, and from there into the terminal.
+              file: describeFileObject(file),
+            }
+          )
         }),
         readObject: genFn(function* (objectKey: string) {
           const command = new GetObjectCommand({
@@ -122,26 +242,31 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             Key: objectKey,
           })
 
-          const result = yield* toEffect(apiInstance.send(command), FileObjectError, {
-            context,
-            command,
-            file: { key: objectKey },
-          })
+          const result = yield* toEffect(
+            (signal) => apiInstance.send(command, { abortSignal: signal }),
+            FileObjectError,
+            {
+              context,
+              commandName: 'GetObject',
+              file: { key: objectKey },
+            }
+          )
 
-          if (result.Body === undefined) {
+          const body = result.Body
+          if (body === undefined) {
             return yield* Effect.fail(
               new FileObjectError({
                 message: 'Bucket returns undefined response',
                 context,
-                command,
+                commandName: 'GetObject',
                 file: { key: objectKey },
               })
             )
           }
 
-          return yield* toEffect(result.Body.transformToByteArray(), FileObjectError, {
+          return yield* toEffect(() => body.transformToByteArray(), FileObjectError, {
             context,
-            command,
+            commandName: 'GetObject',
             file: { key: objectKey },
           })
         }),
@@ -158,9 +283,9 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
                   })
 
                   const result = yield* toEffect(
-                    apiInstance.send(command),
+                    (signal) => apiInstance.send(command, { abortSignal: signal }),
                     FileObjectError,
-                    { context, command, file: {} }
+                    { context, commandName: 'ListObjectsV2', file: {} }
                   )
 
                   return {

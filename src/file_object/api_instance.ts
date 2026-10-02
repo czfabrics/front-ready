@@ -7,20 +7,29 @@ export class FileObjectApiInstance extends Context.Tag('FileObjectApiInstance')<
   S3Client
 >() {}
 
-export const FileObjectApiInstanceLive = Layer.effect(
+/**
+ * Scoped, so the client is destroyed once the command is done with it: an
+ * `S3Client` holds a keep-alive HTTP agent whose open sockets otherwise outlive
+ * the work and keep the process alive.
+ */
+export const FileObjectApiInstanceLive = Layer.scoped(
   FileObjectApiInstance,
   Effect.gen(function* () {
     const config = yield* InternalConfigContext
 
-    return new S3Client({
-      region: config.bucket.params.region,
-      apiVersion: config.bucket.params.apiVersion,
-      endpoint: config.bucket.params.endpoint,
-      forcePathStyle: config.bucket.params.forcePathStyle,
-      credentials: {
-        accessKeyId: config.bucket.params.credentials.accessKeyId,
-        secretAccessKey: config.bucket.params.credentials.secretAccessKey,
-      },
-    })
+    return yield* Effect.acquireRelease(
+      Effect.sync(
+        () =>
+          new S3Client({
+            region: config.bucket.params.region,
+            apiVersion: config.bucket.params.apiVersion,
+            endpoint: config.bucket.params.endpoint,
+            forcePathStyle: config.bucket.params.forcePathStyle,
+            // Left undefined, the SDK falls back to its default credential chain.
+            credentials: config.bucket.params.credentials,
+          })
+      ),
+      (client) => Effect.sync(() => client.destroy())
+    )
   })
 )

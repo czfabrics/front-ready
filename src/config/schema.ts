@@ -1,131 +1,95 @@
+import {
+  CacheControlMappingSchema,
+  CacheControlSchema,
+  DEFAULT_CACHE_CONTROL_VALUE,
+  isValidRegExp,
+} from '#config/cache_control'
 import z from 'zod'
-
-const NUMERIC = new Set([
-  'max-age',
-  's-maxage',
-  'stale-while-revalidate',
-  'stale-if-error',
-])
-
-const FLAGS = new Set([
-  'no-cache',
-  'no-store',
-  'no-transform',
-  'must-revalidate',
-  'proxy-revalidate',
-  'must-understand',
-  'private',
-  'public',
-  'immutable',
-])
-
-const CacheControlSchema = z.string().superRefine((header, ctx) => {
-  for (const part of header.split(',')) {
-    const t = part.trim()
-    if (!t) continue
-
-    const i = t.indexOf('=')
-    const name = (i === -1 ? t : t.slice(0, i)).trim().toLowerCase()
-    const value =
-      i === -1
-        ? undefined
-        : t
-            .slice(i + 1)
-            .trim()
-            .replace(/^"(.*)"$/, '$1')
-
-    if (NUMERIC.has(name)) {
-      if (value === undefined || !/^\d+$/.test(value)) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `Directive "${name}" requires a non-negative integer`,
-        })
-      }
-    } else if (FLAGS.has(name)) {
-      if (value !== undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `Directive "${name}" does not take a value`,
-        })
-      }
-    } else {
-      ctx.addIssue({
-        code: 'custom',
-        message: `Unknown directive "${name}"`,
-      })
-    }
-  }
-})
 
 export type Config = z.input<typeof ConfigSchema>
 export type InternalConfig = z.output<typeof ConfigSchema>
 export type ConfigSchema = typeof ConfigSchema
-export const ConfigSchema = z.object({
-  bucket: z.object({
+export const ConfigSchema = z.strictObject({
+  bucket: z.strictObject({
     namePrefix: z
       .string()
-      .nonempty()
-      .regex(/[a-z-]*/, 'String should be kekab-case string'),
-    params: z.object({
+      .regex(
+        /^[a-z0-9][a-z0-9-]*$/,
+        'Should be kebab-case: lowercase letters, digits and hyphens, starting with a letter or digit'
+      ),
+    params: z.strictObject({
       region: z.string().nonempty(),
-      apiVersion: z.string().nonempty(),
-      endpoint: z.string().nonempty(),
+      apiVersion: z.string().nonempty().optional(),
+      /** Omit for AWS S3; set it for any S3-compatible provider. */
+      endpoint: z.string().nonempty().optional(),
       forcePathStyle: z.union([z.stringbool(), z.boolean()]).optional(),
-      credentials: z.object({
-        accessKeyId: z.string().nonempty(),
-        secretAccessKey: z.string().nonempty(),
-      }),
+      /**
+       * Omit to use the AWS SDK's default credential chain — environment
+       * variables, shared config files, or an instance / IRSA role — so CI need
+       * not write secrets into the config file.
+       */
+      credentials: z
+        .strictObject({
+          accessKeyId: z.string().nonempty(),
+          secretAccessKey: z.string().nonempty(),
+          sessionToken: z.string().nonempty().optional(),
+        })
+        .optional(),
     }),
     front: z
-      .object({
-        defaultCacheControlValue: CacheControlSchema.default(
-          'max-age=60, stale-while-revalidate=600, stale-if-error=86400'
-        ),
-        cacheControlMapping: z
-          .record(
-            z.templateLiteral([z.literal('^'), z.string(), z.literal('$')]),
-            CacheControlSchema
-          )
-          .default({
-            '^index.html$':
-              'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
-            '^assets/.+$':
-              'max-age=86400, stale-while-revalidate=600, stale-if-error=86400',
-            '^translate/.+$':
-              'max-age=14400, stale-while-revalidate=600, stale-if-error=86400',
-            '^.+\\.html$': 'max-age=60, stale-while-revalidate=600, stale-if-error=86400',
-            '^.+$': 'max-age=31536000, stale-while-revalidate=600, stale-if-error=86400',
-          }),
+      .strictObject({
+        defaultCacheControlValue: CacheControlSchema.default(DEFAULT_CACHE_CONTROL_VALUE),
+        cacheControlMapping: CacheControlMappingSchema,
         indexDocumentSuffix: z.string().nonempty().default('index.html'),
         errorDocumentKey: z.string().nonempty().default('index.html'),
       })
       .prefault({}),
+    /**
+     * How objects become publicly readable. `'acl'` grants `public-read` on the
+     * bucket and on every object — what most S3-compatible providers expect.
+     * `'policy'` is the AWS way: ACLs disabled (`BucketOwnerEnforced`), Block
+     * Public Access lifted, and read granted by a bucket policy. AWS refuses ACLs
+     * on any bucket created since April 2023 defaults, so `'acl'` fails there.
+     */
+    accessMode: z.enum(['acl', 'policy']).default('acl'),
     upload: z
-      .object({
-        concurrency: z.number().positive().default(50),
+      .strictObject({
+        concurrency: z.number().int().positive().default(50),
+        /**
+         * Object keys matching any of these are not uploaded — e.g. `'\\.map$'`
+         * to keep source maps, and the source they embed, off a public bucket.
+         */
+        exclude: z
+          .array(
+            z
+              .string()
+              .refine(isValidRegExp, { message: 'Not a valid regular expression' })
+              .transform((pattern) => new RegExp(pattern))
+          )
+          .default([]),
       })
       .prefault({}),
   }),
   front: z.discriminatedUnion('type', [
-    z.object({
+    z.strictObject({
       type: z.literal('angular'),
-      angular: z.object({
+      angular: z.strictObject({
         projectName: z.string().nonempty(),
         angularJsonPath: z.string().nonempty(),
         configurationName: z.string().nonempty().optional(),
       }),
     }),
-    z.object({
+    z.strictObject({
       type: z.literal('astro'),
-      astro: z.object({
+      astro: z.strictObject({
         astroConfigPath: z.string().nonempty().optional(),
         mode: z.string().nonempty(),
       }),
     }),
-    z.object({
+    z.strictObject({
       type: z.literal('custom'),
-      custom: z.object({
-        build: z.object({
+      custom: z.strictObject({
+        build: z.strictObject({
           command: z.string().nonempty(),
           args: z.array(z.string().nonempty()),
         }),

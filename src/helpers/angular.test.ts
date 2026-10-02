@@ -52,9 +52,11 @@ const resolveFailure = function (
   )
 }
 
-const listConfigurations = function (angularJsonPath: string) {
+const listConfigurations = function (angularJsonPath: string, projectName = 'app') {
   return Effect.runPromise(
-    getAngularConfigurations(angularJsonPath).pipe(Effect.provide(NodeContext.layer))
+    getAngularConfigurations(angularJsonPath, projectName).pipe(
+      Effect.provide(NodeContext.layer)
+    )
   )
 }
 
@@ -338,7 +340,9 @@ describe('resolveAngularConfiguration', () => {
 })
 
 describe('getAngularConfigurations', () => {
-  it('collects configuration names across every project and target', async () => {
+  // Every project's names used to be offered, so the prompt for `app` could offer
+  // `preprod` from `admin` — which `resolveAngularConfiguration` then rejected.
+  it("offers only the configured project's own configurations", async () => {
     const angularJsonPath = writeAngularJson({
       projects: {
         app: {
@@ -354,9 +358,12 @@ describe('getAngularConfigurations', () => {
       },
     })
 
-    await expect(listConfigurations(angularJsonPath)).resolves.toStrictEqual([
+    await expect(listConfigurations(angularJsonPath, 'app')).resolves.toStrictEqual([
       'production',
       'staging',
+    ])
+    await expect(listConfigurations(angularJsonPath, 'admin')).resolves.toStrictEqual([
+      'production',
       'preprod',
     ])
   })
@@ -388,5 +395,39 @@ describe('getAngularConfigurations', () => {
     )
 
     await expect(listConfigurations(angularJsonPath)).resolves.toStrictEqual([])
+  })
+})
+
+describe('angular.json syntax', () => {
+  // The Angular CLI reads `angular.json` as JSONC; `JSON.parse` used to reject
+  // comments with an untagged error naming neither the file nor the problem.
+  it('accepts comments and trailing commas, as the Angular CLI does', async () => {
+    const angularJsonPath = writeAngularJson(`{
+      // the workspace
+      "projects": {
+        "app": {
+          "architect": {
+            "build": {
+              /* the browser build */
+              "builder": "@angular-devkit/build-angular:browser",
+              "options": { "outputPath": "dist/app", },
+              "configurations": { "production": {}, },
+            },
+          },
+        },
+      },
+    }`)
+
+    await expect(resolve(angularJsonPath)).resolves.toMatchObject({
+      outputPath: 'dist/app',
+    })
+  })
+
+  it('fails with a tagged error naming the file when the JSON is broken', async () => {
+    const angularJsonPath = writeAngularJson('{ "projects": ')
+
+    const error = await resolveFailure(angularJsonPath)
+
+    expect(error).toMatchObject({ _tag: 'AngularJsonSyntaxError', angularJsonPath })
   })
 })

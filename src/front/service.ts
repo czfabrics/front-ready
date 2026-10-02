@@ -2,18 +2,17 @@ import { FileObjectBucketContext } from '#contexts/file_object_bucket'
 import { FileRepositoryContext } from '#contexts/file_repository'
 import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { InternalConfigContext } from '#contexts/internal_config'
-import { FileError } from '#errors/file'
 import { FileRepository } from '#file/repository'
 import { FileComponent, FileItem, FileTree } from '#file/types'
 import { FileObjectRepository } from '#file_object/repository'
 import { genFn } from '#helpers/effect'
 import {
   detectAndFillCacheControl,
-  extractRootFileTree,
+  extractFirstFolderFromPath,
   fileIntoObject,
+  toObjectKey,
 } from '#helpers/file'
-import { BucketLocationConstraint } from '@aws-sdk/client-s3'
-import { Effect, HashMap, Layer, Option } from 'effect'
+import { Effect, Layer, Option } from 'effect'
 
 const FileRepositoryContextLive = Layer.effect(
   FileRepositoryContext,
@@ -30,7 +29,8 @@ const FileObjectBucketContextLive = Layer.effect(
     const config = yield* InternalConfigContext
     return {
       bucketName: front.bucketName,
-      region: config.bucket.params.region as BucketLocationConstraint,
+      region: config.bucket.params.region,
+      accessMode: config.bucket.accessMode,
     }
   })
 )
@@ -51,50 +51,49 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
         listFrontBuildFiles: () => {
           return fileRepository.listFiles()
         },
+        /**
+         * Root-level files stay bare `FileItem`s; everything below a folder is
+         * grouped into one `FileTree` per first path segment. Grouped in a single
+         * pass, each tree built once — appending to an immutable tree per file
+         * copied the whole item list every time, quadratic in the folder size.
+         */
         listFrontBuildFileByRootComponents: genFn(function* () {
-          const files = yield* fileRepository.listFiles()
+          const { exclude } = configContext.bucket.upload
+          const files = (yield* fileRepository.listFiles()).filter((file) => {
+            const key = toObjectKey(file.relativePath)
 
-          let map = HashMap.empty<string, FileComponent>()
+            return !exclude.some((pattern) => pattern.test(key))
+          })
+
+          const rootFiles: FileItem[] = []
+          const itemsByFolder = new Map<string, FileItem[]>()
 
           for (const file of files) {
-            const resolvedFileTree = yield* extractRootFileTree(
-              file,
-              frontContext.buildOutputPath
-            )
-            if (Option.isNone(resolvedFileTree)) {
-              map = HashMap.set(map, file.absolutePath, file)
+            const folder = yield* extractFirstFolderFromPath(file.relativePath)
+
+            if (Option.isNone(folder)) {
+              rootFiles.push(file)
 
               continue
             }
 
-            const existingFileTree = HashMap.get(map, resolvedFileTree.value.absolutePath)
-            if (Option.isNone(existingFileTree)) {
-              map = HashMap.set(
-                map,
-                resolvedFileTree.value.absolutePath,
-                resolvedFileTree.value
-              )
-              continue
+            const items = itemsByFolder.get(folder.value)
+            if (items === undefined) {
+              itemsByFolder.set(folder.value, [file])
+            } else {
+              items.push(file)
             }
-
-            if (!FileTree.is(existingFileTree.value)) {
-              return yield* Effect.fail(
-                new FileError({
-                  message: `The same path was resolved both file item & file tree`,
-                  file: existingFileTree.value,
-                })
-              )
-            }
-
-            const updatedFileTree = yield* existingFileTree.value.append([file])
-            map = HashMap.set(map, existingFileTree.value.absolutePath, updatedFileTree)
           }
 
-          return HashMap.values(map)
+          const trees = yield* Effect.forEach(itemsByFolder, ([relativePath, items]) =>
+            FileTree.new({ relativePath, cwd: frontContext.buildOutputPath, items })
+          )
+
+          return [...rootFiles, ...trees] satisfies FileComponent[]
         }),
         createFrontBucket: genFn(function* () {
           yield* fileObjectRepository.createBucket()
-          yield* fileObjectRepository.setPublicReadAclOnBucket()
+          yield* fileObjectRepository.grantPublicRead()
           yield* fileObjectRepository.setWebsiteConfigurationOnBucket(
             configContext.bucket.front.indexDocumentSuffix,
             configContext.bucket.front.errorDocumentKey

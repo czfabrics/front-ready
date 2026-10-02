@@ -1,5 +1,6 @@
 import { TUiWrapperError } from '#errors/interop/tui_wrapper'
 import { toEffect } from '#helpers/effect'
+import { interruptOnPromptCancel } from '#ui/prompt'
 import { confirm } from '@clack/prompts'
 
 export const genConfirmUi = function ({
@@ -9,14 +10,17 @@ export const genConfirmUi = function ({
   question: string
   initialValue: boolean
 }) {
-  return toEffect(
-    confirm({
-      message: question,
-      initialValue,
-    }),
-    TUiWrapperError,
-    {
-      uiFunction: 'confirm',
-    }
+  return interruptOnPromptCancel(
+    toEffect(
+      () =>
+        confirm({
+          message: question,
+          initialValue,
+        }),
+      TUiWrapperError,
+      {
+        uiFunction: 'confirm',
+      }
+    )
   )
 }

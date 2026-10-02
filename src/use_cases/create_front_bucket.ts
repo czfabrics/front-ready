@@ -16,10 +16,12 @@ export class CreateFrontBucketUseCase extends Effect.Service<CreateFrontBucketUs
       return {
         run: genFn(function* () {
           const doesBucketExist = yield* frontService.doesFrontBucketExist()
+          // Already there is the outcome `create` is after, not a cancellation: an
+          // idempotent success, so re-running it in CI stays green.
           if (doesBucketExist) {
-            log.info(`The bucket '${deploymentContext.bucketName}' already exist`)
+            log.info(`The bucket '${deploymentContext.bucketName}' already exists`)
 
-            return yield* Effect.interrupt
+            return
           }
 
           const shouldContinue = yield* genConfirmUi({

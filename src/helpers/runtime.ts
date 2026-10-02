@@ -1,8 +1,19 @@
-import { Effect } from 'effect'
+import { CANCEL_EXIT_CODE } from '#core/exit_codes'
+import { Deferred, Effect, Exit } from 'effect'
 import * as readline from 'node:readline'
 
+/**
+ * `emitKeypressEvents` attaches a permanent `'data'` listener that puts stdin in
+ * flowing mode, and a flowing stdin keeps the event loop alive. Removing our own
+ * `'keypress'` listener is not enough: the stream has to be paused again, or a
+ * command that never ran a clack prompt (which pauses stdin on close) finishes its
+ * outro and then hangs forever on a real terminal. Raw mode is restored to what it
+ * was, not forced off, so a caller that had it on keeps it.
+ */
 const interruptOnCtrlC = function () {
   return Effect.async<never>((resume) => {
+    const wasRaw = process.stdin.isTTY ? process.stdin.isRaw : false
+
     readline.emitKeypressEvents(process.stdin)
     if (process.stdin.isTTY) process.stdin.setRawMode(true)
 
@@ -15,7 +26,8 @@ const interruptOnCtrlC = function () {
 
     return Effect.sync(() => {
       process.stdin.off('keypress', onKeypress)
-      if (process.stdin.isTTY) process.stdin.setRawMode(false)
+      if (process.stdin.isTTY) process.stdin.setRawMode(wasRaw)
+      process.stdin.pause()
     })
   })
 }
@@ -39,17 +51,38 @@ const overrideProcessExit = (override: (code?: number) => void) =>
       })
   )
 
+/**
+ * Something inside `effect` asking the process to exit — clack's own Ctrl-C
+ * handler calls `process.exit(0)` while a spinner is up — is turned into an
+ * interruption of `effect`. Only swallowing the call let the work run on in a
+ * state its caller believed was over; interrupting it stops the work, runs its
+ * finalizers, and lets the command end on its cancel outro. A non-zero code asked
+ * for is kept as the exit code rather than replaced by the cancellation one.
+ *
+ * `process.exit` is a global, so overlapping calls must nest: each one restores
+ * the function it replaced.
+ */
 export const interceptProcessExit = function <TResult, TError, TDeps>(
   effect: Effect.Effect<TResult, TError, TDeps>,
   callback: (exitCode: number) => void
 ) {
   return Effect.scoped(
     Effect.gen(function* () {
+      const exitRequested = yield* Deferred.make<void>()
+
       yield* overrideProcessExit((exitCode) => {
-        callback(exitCode ?? 130)
+        if (exitCode !== undefined && exitCode !== 0) {
+          process.exitCode = exitCode
+        }
+
+        callback(exitCode ?? CANCEL_EXIT_CODE)
+        Deferred.unsafeDone(exitRequested, Exit.void)
       })
 
-      return yield* effect
+      return yield* Effect.raceFirst(
+        effect,
+        Deferred.await(exitRequested).pipe(Effect.andThen(Effect.interrupt))
+      )
     })
   )
 }

@@ -1,3 +1,4 @@
+import { CacheControlRule } from '#config/cache_control'
 import { InternalConfigContext } from '#contexts/internal_config'
 import { FileNotFoundError } from '#errors/file'
 import { FileComponent, FileItem, FileTree } from '#file/types'
@@ -6,13 +7,23 @@ import { genFn } from '#helpers/effect'
 import { Path } from '@effect/platform'
 import { Effect, Array as EffectArray, Equal, Option, Stream } from 'effect'
 
+/**
+ * The object key for a file: its path below the build folder, always with `/`.
+ * A recursive listing uses the platform separator, so on Windows the key used to
+ * come out as `assets\\logo.svg` — a different object, invisible to any
+ * `^assets/` cache rule.
+ */
+export const toObjectKey = function (relativePath: string): string {
+  return relativePath.replace(/\\/g, '/')
+}
+
 export const fileIntoObject = function (file: FileItem) {
   return Effect.gen(function* () {
     const content = yield* file.content
     const contentType = yield* file.contentType
 
     return {
-      key: file.relativePath,
+      key: toObjectKey(file.relativePath),
       content,
       contentType,
       cacheControlValue: undefined,
@@ -22,23 +33,14 @@ export const fileIntoObject = function (file: FileItem) {
 
 export const detectAndFillCacheControl = function (
   object: FileObject,
-  cacheControlMapping: Record<string, string>,
+  cacheControlRules: ReadonlyArray<CacheControlRule>,
   defaultCacheControlValue: string
 ): FileObject {
-  for (const [keyRawRegExp, cacheControlValue] of Object.entries(cacheControlMapping)) {
-    const isCorrectCacheControl = new RegExp(keyRawRegExp).test(object.key)
-
-    if (isCorrectCacheControl) {
-      return {
-        ...object,
-        cacheControlValue,
-      }
-    }
-  }
+  const rule = cacheControlRules.find(({ regExp }) => regExp.test(object.key))
 
   return {
     ...object,
-    cacheControlValue: defaultCacheControlValue,
+    cacheControlValue: rule?.value ?? defaultCacheControlValue,
   }
 }
 
@@ -59,18 +61,6 @@ export const extractFirstFolderFromPath = function (relativePath: string) {
     return EffectArray.head(segments)
   })
 }
-
-export const extractRootFileTree = genFn(function* (file: FileItem, cwd: string) {
-  const firstFolder = yield* extractFirstFolderFromPath(file.relativePath)
-
-  if (Option.isNone(firstFolder)) {
-    return Option.none()
-  }
-
-  return Option.some(
-    yield* FileTree.new({ relativePath: firstFolder.value, cwd, items: [file] })
-  )
-})
 
 export const hasMinOneFile = function (components: Iterable<FileComponent>) {
   for (const component of components) {

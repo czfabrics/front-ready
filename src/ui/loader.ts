@@ -1,3 +1,4 @@
+import { CANCEL_EXIT_CODE } from '#core/exit_codes'
 import { interceptProcessExit } from '#helpers/runtime'
 import { spinner } from '@clack/prompts'
 import { Duration, Effect } from 'effect'
@@ -24,6 +25,8 @@ export const genLoaderUi = function <TResult, TError, TDeps>({
       styleFrame: (frame) => `\x1b[35m${frame}\x1b[0m`,
     })
 
+    let isSettled = false
+
     return yield* interceptProcessExit(
       Effect.gen(function* () {
         spin.start(message.resolveStart())
@@ -43,8 +46,20 @@ export const genLoaderUi = function <TResult, TError, TDeps>({
         spin.stop(message.resolveEnd(duration))
 
         return result
-      }),
-      (exitCode) => spin.cancel(message.resolveCancel(exitCode))
+      }).pipe(
+        // Any interruption that is neither a signal nor a `process.exit` — a
+        // sibling failing in a race, a timeout — must still stop the spinner, or
+        // the terminal keeps spinning with its cursor hidden.
+        Effect.onInterrupt(() =>
+          Effect.sync(() => {
+            if (!isSettled) spin.cancel(message.resolveCancel(CANCEL_EXIT_CODE))
+          })
+        )
+      ),
+      (exitCode) => {
+        isSettled = true
+        spin.cancel(message.resolveCancel(exitCode))
+      }
     )
   })
 }
