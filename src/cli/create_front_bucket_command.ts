@@ -6,7 +6,7 @@ import { Effect } from 'effect'
 export const createFrontBucketCommand = command({
   name: 'create',
   description:
-    'Creates the bucket and prepares it for static hosting: sets `BucketOwnerEnforced` object ownership, makes the bucket publicly readable, and adds the static website configuration.',
+    "Creates the bucket and prepares it for static hosting: makes it publicly readable — through ACLs, or through a bucket policy with `accessMode: 'policy'` — and adds the static website configuration. Running it against a bucket that already exists is a no-op.",
   args: {},
   handler: function () {
     return runCliCommand({

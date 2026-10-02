@@ -6,13 +6,16 @@ import {
 } from '#file_object/api_instance'
 import { genFn, toEffect } from '#helpers/effect'
 import {
+  BucketLocationConstraint,
   CreateBucketCommand,
   GetObjectCommand,
   HeadBucketCommand,
   ListObjectsV2Command,
   PutBucketAclCommand,
+  PutBucketPolicyCommand,
   PutBucketWebsiteCommand,
   PutObjectCommand,
+  PutPublicAccessBlockCommand,
 } from '@aws-sdk/client-s3'
 import { Effect } from 'effect'
 
@@ -36,6 +39,34 @@ const describeFileObject = function (file: FileObject): FileObjectDescription {
   }
 }
 
+/**
+ * AWS rejects `LocationConstraint: 'us-east-1'` with `InvalidLocationConstraint`:
+ * the default region is expressed by leaving the field out.
+ */
+const DEFAULT_AWS_REGION = 'us-east-1'
+
+/**
+ * Only a 404 means the bucket is not there. A 403 (it exists, but these
+ * credentials may not see it), a wrong endpoint, a DNS failure or expired keys
+ * are real errors and must surface as such — not as "does not exist".
+ */
+const isNotFound = function (error: FileObjectError): boolean {
+  const thrown: unknown = error.cause?.error
+
+  if (typeof thrown !== 'object' || thrown === null) {
+    return false
+  }
+
+  const name = 'name' in thrown ? thrown.name : undefined
+  const metadata = '$metadata' in thrown ? thrown.$metadata : undefined
+  const statusCode =
+    typeof metadata === 'object' && metadata !== null && 'httpStatusCode' in metadata
+      ? metadata.httpStatusCode
+      : undefined
+
+  return name === 'NotFound' || name === 'NoSuchBucket' || statusCode === 404
+}
+
 export class FileObjectRepository extends Effect.Service<FileObjectRepository>()(
   'FileObjectRepository',
   {
@@ -47,10 +78,19 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
         createBucket: genFn(function* () {
           const command = new CreateBucketCommand({
             Bucket: context.bucketName,
-            CreateBucketConfiguration: {
-              LocationConstraint: context.region,
-            },
-            ObjectOwnership: 'BucketOwnerEnforced',
+            ...(context.region === DEFAULT_AWS_REGION
+              ? {}
+              : {
+                  CreateBucketConfiguration: {
+                    // Every region but the default one is a valid constraint.
+                    LocationConstraint: context.region as BucketLocationConstraint,
+                  },
+                }),
+            // Disabling ACLs only makes sense when read is granted by a policy: in
+            // `'acl'` mode the very next calls set `public-read` ACLs.
+            ...(context.accessMode === 'policy'
+              ? { ObjectOwnership: 'BucketOwnerEnforced' as const }
+              : {}),
           })
 
           yield* toEffect(apiInstance.send(command), FileObjectError, {
@@ -64,29 +104,66 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             Bucket: context.bucketName,
           })
 
-          const doesExist = yield* Effect.matchEffect(
-            toEffect(apiInstance.send(command), FileObjectError, {
-              context,
-              commandName: 'HeadBucket',
-              file: {},
-            }),
-            {
-              onFailure: () => Effect.succeed(false),
-              onSuccess: () => Effect.succeed(true),
-            }
+          return yield* toEffect(apiInstance.send(command), FileObjectError, {
+            context,
+            commandName: 'HeadBucket',
+            file: {},
+          }).pipe(
+            Effect.as(true),
+            Effect.catchIf(isNotFound, () => Effect.succeed(false))
           )
-
-          return doesExist
         }),
-        setPublicReadAclOnBucket: genFn(function* () {
-          const command = new PutBucketAclCommand({
+        grantPublicRead: genFn(function* () {
+          if (context.accessMode === 'acl') {
+            const command = new PutBucketAclCommand({
+              Bucket: context.bucketName,
+              ACL: 'public-read',
+            })
+
+            return yield* toEffect(apiInstance.send(command), FileObjectError, {
+              context,
+              commandName: 'PutBucketAcl',
+              file: {},
+            })
+          }
+
+          // New AWS buckets block public access outright, which would refuse the
+          // policy below; lift the block before granting read.
+          const unblockCommand = new PutPublicAccessBlockCommand({
             Bucket: context.bucketName,
-            ACL: 'public-read',
+            PublicAccessBlockConfiguration: {
+              BlockPublicAcls: false,
+              IgnorePublicAcls: false,
+              BlockPublicPolicy: false,
+              RestrictPublicBuckets: false,
+            },
           })
 
-          yield* toEffect(apiInstance.send(command), FileObjectError, {
+          yield* toEffect(apiInstance.send(unblockCommand), FileObjectError, {
             context,
-            commandName: 'PutBucketAcl',
+            commandName: 'PutPublicAccessBlock',
+            file: {},
+          })
+
+          const policyCommand = new PutBucketPolicyCommand({
+            Bucket: context.bucketName,
+            Policy: JSON.stringify({
+              Version: '2012-10-17',
+              Statement: [
+                {
+                  Sid: 'PublicReadGetObject',
+                  Effect: 'Allow',
+                  Principal: '*',
+                  Action: 's3:GetObject',
+                  Resource: `arn:aws:s3:::${context.bucketName}/*`,
+                },
+              ],
+            }),
+          })
+
+          yield* toEffect(apiInstance.send(policyCommand), FileObjectError, {
+            context,
+            commandName: 'PutBucketPolicy',
             file: {},
           })
         }),
@@ -114,7 +191,8 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
         }),
         putObject: genFn(function* (file: FileObject) {
           const command = new PutObjectCommand({
-            ACL: 'public-read',
+            // A `BucketOwnerEnforced` bucket rejects any ACL other than the owner's.
+            ...(context.accessMode === 'acl' ? { ACL: 'public-read' as const } : {}),
             Bucket: context.bucketName,
             Key: file.key,
             Body: file.content,

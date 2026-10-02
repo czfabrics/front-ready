@@ -12,7 +12,6 @@ import {
   extractRootFileTree,
   fileIntoObject,
 } from '#helpers/file'
-import { BucketLocationConstraint } from '@aws-sdk/client-s3'
 import { Effect, HashMap, Layer, Option } from 'effect'
 
 const FileRepositoryContextLive = Layer.effect(
@@ -30,7 +29,8 @@ const FileObjectBucketContextLive = Layer.effect(
     const config = yield* InternalConfigContext
     return {
       bucketName: front.bucketName,
-      region: config.bucket.params.region as BucketLocationConstraint,
+      region: config.bucket.params.region,
+      accessMode: config.bucket.accessMode,
     }
   })
 )
@@ -94,7 +94,7 @@ export class FrontFileObjectService extends Effect.Service<FrontFileObjectServic
         }),
         createFrontBucket: genFn(function* () {
           yield* fileObjectRepository.createBucket()
-          yield* fileObjectRepository.setPublicReadAclOnBucket()
+          yield* fileObjectRepository.grantPublicRead()
           yield* fileObjectRepository.setWebsiteConfigurationOnBucket(
             configContext.bucket.front.indexDocumentSuffix,
             configContext.bucket.front.errorDocumentKey

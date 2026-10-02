@@ -100,6 +100,14 @@ export const ConfigSchema = z.object({
         errorDocumentKey: z.string().nonempty().default('index.html'),
       })
       .prefault({}),
+    /**
+     * How objects become publicly readable. `'acl'` grants `public-read` on the
+     * bucket and on every object — what most S3-compatible providers expect.
+     * `'policy'` is the AWS way: ACLs disabled (`BucketOwnerEnforced`), Block
+     * Public Access lifted, and read granted by a bucket policy. AWS refuses ACLs
+     * on any bucket created since April 2023 defaults, so `'acl'` fails there.
+     */
+    accessMode: z.enum(['acl', 'policy']).default('acl'),
     upload: z
       .object({
         concurrency: z.number().positive().default(50),

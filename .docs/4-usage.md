@@ -177,6 +177,7 @@ export default {
       indexDocumentSuffix: 'index.html',
       errorDocumentKey: 'index.html',
     },
+    accessMode: 'acl', // or 'policy' for AWS S3 — see "Create" below
     upload: {
       concurrency: 50,
     },
@@ -190,7 +191,16 @@ Run the CLI with your package manager's runner — `bunx`, `yarn dlx`, or `npx`.
 
 ### Create
 
-Creates the bucket and prepares it for static hosting: sets `BucketOwnerEnforced` object ownership, makes the bucket publicly readable, and adds the static website configuration.
+Creates the bucket and prepares it for static hosting: makes it publicly readable — through ACLs, or through a bucket policy with `accessMode: 'policy'` — and adds the static website configuration. Running it against a bucket that already exists is a no-op.
+
+How the bucket is made publicly readable depends on `bucket.accessMode`:
+
+| `accessMode`      | Bucket                                                            | Objects                | Use with                               |
+| ----------------- | ----------------------------------------------------------------- | ---------------------- | -------------------------------------- |
+| `'acl'` (default) | `public-read` bucket ACL                                          | `public-read` ACL each | Most S3-compatible providers           |
+| `'policy'`        | `BucketOwnerEnforced`, Block Public Access lifted, read by policy | No ACL                 | AWS S3, which disables ACLs by default |
+
+AWS rejects ACLs on a bucket whose ACLs are disabled — the default for new AWS buckets — so use `'policy'` there.
 
 ```sh
 bunx {{ pkg.name }} create      # Bun

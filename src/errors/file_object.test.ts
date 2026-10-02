@@ -9,7 +9,11 @@ describe('FileObjectError', () => {
     const error = new FileObjectError({
       message: 'Access Denied',
       commandName: 'PutObject',
-      context: { bucketName: 'front-ready-production', region: 'eu-west-3' },
+      context: {
+        bucketName: 'front-ready-production',
+        region: 'eu-west-3',
+        accessMode: 'acl',
+      },
       file: {
         key: '_astro/main.abc123.js',
         contentType: 'text/javascript',

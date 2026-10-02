@@ -5,6 +5,7 @@ import {
   runCliCommand,
 } from '#cli/command_runner'
 import { BucketNotFoundError } from '#errors/bucket'
+import { NodeContext } from '@effect/platform-node'
 import { Effect } from 'effect'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -63,7 +64,9 @@ const run = async function (program: Effect.Effect<void, unknown>) {
   // `runPromiseExit`: a cancellation still ends interrupted once the outro is out,
   // which is what `runMain` sees — the exit code set on the way is what matters.
   await Effect.runPromiseExit(
-    runCliCommand({ commandName: 'test', program, messages: MESSAGES })
+    runCliCommand({ commandName: 'test', program, messages: MESSAGES }).pipe(
+      Effect.provide(NodeContext.layer)
+    )
   )
 
   return process.exitCode
