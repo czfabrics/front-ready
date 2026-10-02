@@ -1,4 +1,5 @@
-import { Effect } from 'effect'
+import { CANCEL_EXIT_CODE } from '#core/exit_codes'
+import { Deferred, Effect, Exit } from 'effect'
 import * as readline from 'node:readline'
 
 /**
@@ -50,17 +51,38 @@ const overrideProcessExit = (override: (code?: number) => void) =>
       })
   )
 
+/**
+ * Something inside `effect` asking the process to exit — clack's own Ctrl-C
+ * handler calls `process.exit(0)` while a spinner is up — is turned into an
+ * interruption of `effect`. Only swallowing the call let the work run on in a
+ * state its caller believed was over; interrupting it stops the work, runs its
+ * finalizers, and lets the command end on its cancel outro. A non-zero code asked
+ * for is kept as the exit code rather than replaced by the cancellation one.
+ *
+ * `process.exit` is a global, so overlapping calls must nest: each one restores
+ * the function it replaced.
+ */
 export const interceptProcessExit = function <TResult, TError, TDeps>(
   effect: Effect.Effect<TResult, TError, TDeps>,
   callback: (exitCode: number) => void
 ) {
   return Effect.scoped(
     Effect.gen(function* () {
+      const exitRequested = yield* Deferred.make<void>()
+
       yield* overrideProcessExit((exitCode) => {
-        callback(exitCode ?? 130)
+        if (exitCode !== undefined && exitCode !== 0) {
+          process.exitCode = exitCode
+        }
+
+        callback(exitCode ?? CANCEL_EXIT_CODE)
+        Deferred.unsafeDone(exitRequested, Exit.void)
       })
 
-      return yield* effect
+      return yield* Effect.raceFirst(
+        effect,
+        Deferred.await(exitRequested).pipe(Effect.andThen(Effect.interrupt))
+      )
     })
   )
 }

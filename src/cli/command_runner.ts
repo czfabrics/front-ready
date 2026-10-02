@@ -63,7 +63,9 @@ export const runCliCommand = function <TError, TDeps>({
     Effect.onInterrupt(() =>
       Effect.sync(() => {
         cancel(messages.canceled)
-        process.exitCode = CANCEL_EXIT_CODE
+        // Keep a more specific code already set on the way, e.g. by a child
+        // process exiting non-zero through `interceptProcessExit`.
+        if (!process.exitCode) process.exitCode = CANCEL_EXIT_CODE
       })
     ),
     Effect.catchAll((error) =>
