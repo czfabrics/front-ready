@@ -1,5 +1,5 @@
 import { FileObjectBucketContext } from '#contexts/file_object_bucket'
-import { FileObjectError } from '#errors/file_object'
+import { FileObjectDescription, FileObjectError } from '#errors/file_object'
 import {
   FileObjectApiInstance,
   FileObjectApiInstanceLive,
@@ -23,6 +23,19 @@ export type FileObject = {
   cacheControlValue: string | undefined
 }
 
+/**
+ * Everything about an object except its bytes, for error contexts: a
+ * `FileObject` carries the whole upload payload, which has no business being
+ * rendered to a terminal or a CI log.
+ */
+const describeFileObject = function (file: FileObject): FileObjectDescription {
+  return {
+    key: file.key,
+    contentType: file.contentType,
+    cacheControlValue: file.cacheControlValue,
+  }
+}
+
 export class FileObjectRepository extends Effect.Service<FileObjectRepository>()(
   'FileObjectRepository',
   {
@@ -42,7 +55,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
 
           yield* toEffect(apiInstance.send(command), FileObjectError, {
             context,
-            command,
+            commandName: 'CreateBucket',
             file: {},
           })
         }),
@@ -54,7 +67,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
           const doesExist = yield* Effect.matchEffect(
             toEffect(apiInstance.send(command), FileObjectError, {
               context,
-              command,
+              commandName: 'HeadBucket',
               file: {},
             }),
             {
@@ -73,7 +86,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
 
           yield* toEffect(apiInstance.send(command), FileObjectError, {
             context,
-            command,
+            commandName: 'PutBucketAcl',
             file: {},
           })
         }),
@@ -95,7 +108,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
 
           yield* toEffect(apiInstance.send(command), FileObjectError, {
             context,
-            command,
+            commandName: 'PutBucketWebsite',
             file: {},
           })
         }),
@@ -105,15 +118,16 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
             Bucket: context.bucketName,
             Key: file.key,
             Body: file.content,
-            ContentEncoding: 'binary',
             ContentType: file.contentType,
             CacheControl: file.cacheControlValue,
           })
 
           yield* toEffect(apiInstance.send(command), FileObjectError, {
             context,
-            command,
-            file,
+            commandName: 'PutObject',
+            // Never the whole `file`: `content` would put the entire uploaded
+            // payload into the error, and from there into the terminal.
+            file: describeFileObject(file),
           })
         }),
         readObject: genFn(function* (objectKey: string) {
@@ -124,7 +138,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
 
           const result = yield* toEffect(apiInstance.send(command), FileObjectError, {
             context,
-            command,
+            commandName: 'GetObject',
             file: { key: objectKey },
           })
 
@@ -133,7 +147,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
               new FileObjectError({
                 message: 'Bucket returns undefined response',
                 context,
-                command,
+                commandName: 'GetObject',
                 file: { key: objectKey },
               })
             )
@@ -141,7 +155,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
 
           return yield* toEffect(result.Body.transformToByteArray(), FileObjectError, {
             context,
-            command,
+            commandName: 'GetObject',
             file: { key: objectKey },
           })
         }),
@@ -160,7 +174,7 @@ export class FileObjectRepository extends Effect.Service<FileObjectRepository>()
                   const result = yield* toEffect(
                     apiInstance.send(command),
                     FileObjectError,
-                    { context, command, file: {} }
+                    { context, commandName: 'ListObjectsV2', file: {} }
                   )
 
                   return {
