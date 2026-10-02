@@ -4,6 +4,12 @@ import { Path } from '@effect/platform'
 import { FileSystem } from '@effect/platform/FileSystem'
 import { Effect } from 'effect'
 
+/**
+ * A recursive listing can hold thousands of entries; one `stat` fiber each, all
+ * at once, is churn for nothing.
+ */
+const STAT_CONCURRENCY = 64
+
 export class FileRepository extends Effect.Service<FileRepository>()('FileRepository', {
   effect: Effect.gen(function* () {
     const fs = yield* FileSystem
@@ -23,7 +29,7 @@ export class FileRepository extends Effect.Service<FileRepository>()('FileReposi
               fs
                 .stat(path.resolve(context.cwd, relativePath))
                 .pipe(Effect.map((info) => info.type === 'File')),
-            { concurrency: 'unbounded' }
+            { concurrency: STAT_CONCURRENCY }
           )
 
           return yield* Effect.forEach(filePaths, (filePath) => {

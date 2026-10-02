@@ -60,18 +60,6 @@ export const extractFirstFolderFromPath = function (relativePath: string) {
   })
 }
 
-export const extractRootFileTree = genFn(function* (file: FileItem, cwd: string) {
-  const firstFolder = yield* extractFirstFolderFromPath(file.relativePath)
-
-  if (Option.isNone(firstFolder)) {
-    return Option.none()
-  }
-
-  return Option.some(
-    yield* FileTree.new({ relativePath: firstFolder.value, cwd, items: [file] })
-  )
-})
-
 export const hasMinOneFile = function (components: Iterable<FileComponent>) {
   for (const component of components) {
     if (component.length > 0) {

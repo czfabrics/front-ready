@@ -1,6 +1,6 @@
 import { IterableElement, IteratorImpl } from '#core/types'
 import { taskLog } from '@clack/prompts'
-import { Duration, Effect, Stream } from 'effect'
+import { Duration, Effect, Exit, Stream } from 'effect'
 
 export const genTaskLogsUi = <
   TItemGroup extends IteratorImpl<any>,
@@ -23,6 +23,11 @@ export const genTaskLogsUi = <
     resolveGroupError: (group: TItemGroup, error: TProcessError) => string
     resolveSuccess: (duration: Duration.Duration) => string
   }
+  /**
+   * The cap on items in flight across *every* group at once. Groups themselves
+   * all start together, so a per-group bound would multiply by the number of
+   * groups — and each in-flight item may hold a whole file in memory.
+   */
   subTaskConcurrency: number
 }) => {
   return Effect.gen(function* () {
@@ -30,6 +35,8 @@ export const genTaskLogsUi = <
       title,
       retainLog: false,
     })
+
+    const permits = yield* Effect.makeSemaphore(subTaskConcurrency)
 
     const processGroup = (group: TItemGroup) =>
       Effect.gen(function* () {
@@ -39,10 +46,13 @@ export const genTaskLogsUi = <
           Stream.fromIterable(group as Iterable<TItem>).pipe(
             Stream.mapEffect(
               (item) =>
-                Effect.gen(function* () {
-                  yield* processItem(item)
-                  groupLog.message(message.resolveItem(item))
-                }),
+                permits
+                  .withPermits(1)(processItem(item))
+                  .pipe(
+                    Effect.tap(() =>
+                      Effect.sync(() => groupLog.message(message.resolveItem(item)))
+                    )
+                  ),
               { concurrency: subTaskConcurrency }
             ),
             Stream.runDrain,
@@ -51,6 +61,13 @@ export const genTaskLogsUi = <
                 groupLog.error(message.resolveGroupError(group, error))
                 return yield* Effect.fail(error)
               })
+            ),
+            // A sibling group failing interrupts this one: close it rather than
+            // leave it rendering as still in progress.
+            Effect.onInterrupt(() =>
+              Effect.sync(() =>
+                groupLog.error(`${message.resolveGroupTitle(group)}: interrupted`)
+              )
             )
           )
         )
@@ -62,6 +79,12 @@ export const genTaskLogsUi = <
       Stream.fromIterable(itemGroups).pipe(
         Stream.mapEffect(processGroup, { concurrency: 'unbounded' }),
         Stream.runDrain
+      )
+    ).pipe(
+      Effect.onExit((exit) =>
+        Exit.isSuccess(exit)
+          ? Effect.void
+          : Effect.sync(() => log.error(`${title}: failed`))
       )
     )
 

@@ -1,16 +1,11 @@
 import { startCli } from '#cli/cli_starter'
 import { CliCommandContext } from '#contexts/cli_command'
+import { CANCEL_EXIT_CODE, FAILURE_EXIT_CODE } from '#core/exit_codes'
 import { InternalConfigContext } from '#contexts/internal_config'
 import { makeFrontDeploymentContextLayer } from '#factories/front_deployment_context'
 import { runAndInterruptOnCtrlC } from '#helpers/runtime'
 import { cancel, log, outro } from '@clack/prompts'
 import { Effect, Layer } from 'effect'
-
-/** A failure: something went wrong and the command did not do its job. */
-export const FAILURE_EXIT_CODE = 1
-
-/** The user backed out, by declining a prompt or with Ctrl-C. */
-export const CANCEL_EXIT_CODE = 130
 
 const IGNORED_ERROR_FIELDS = new Set(['_tag', 'message', 'cause', 'stack', 'name'])
 
