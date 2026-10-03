@@ -40,8 +40,9 @@ from `vite-tsconfig-paths`). They are type-checked by `bun run typecheck` (`tsco
 `src/**/*.ts`) but excluded from the published `.d.ts` (`tsconfig.declaration.json` includes only
 `index.ts`).
 
-`astro.test.ts` `process.chdir`s into a temp directory per test, because c12 discovers
-`astro.config.*` relative to the cwd; restore the cwd in `afterEach` if you copy that pattern.
+`astro.test.ts` `process.chdir`s into a temp directory per test, because
+`astro.config.*` is discovered relative to the cwd; restore the cwd in `afterEach` if you copy that
+pattern.
 
 ## Generated files — do not edit by hand
 
@@ -100,12 +101,16 @@ uses. Adding a front type means a new member in the `front` discriminated union 
   `ng build` in the folder holding `angular.json` and resolves the output path there too. If
   `configurationName` is absent from config, the factory prompts for one among that project's
   build configurations — resolved into a local, never written back onto the parsed config.
-- `astro`: `src/helpers/astro.ts` loads `astro.config.*` through **c12** (not `FileSystem` — the
-  config is JS/TS, so it has to be executed; c12 runs jiti, and `configFileRequired: true` turns a
-  missing file into a `ConfigWrapperError`). It reads `outDir` (default `./dist`) and falls back to
-  `build.client` inside it when `output` isn't `'static'`. `buildOutputHashing` is the constant
-  `'all'`: Astro exposes no option to disable Vite's content-hashed `_astro/[name].[hash].js`.
-  `mode` is required — unlike `angular.json`, nothing enumerates Astro modes, so there is no prompt.
+- `astro`: `src/helpers/astro.ts` loads `astro.config.*` **the way Astro does**, not through c12
+  (whose native-`import()`-then-jiti path rejects configs Astro accepts, e.g. `?raw` imports or
+  extensionless TS imports). It looks for `astro.config.{mjs,js,ts,mts,cjs,cts}` in the cwd in
+  Astro's order (an explicit path must exist; otherwise `AstroConfigNotFoundError`), imports
+  `.mjs`/`.js` natively first, and otherwise loads it with `ssrLoadModule` on a throwaway Vite
+  server (no listener, watcher or ws) that `acquireUseRelease` always closes; failures are
+  `ViteWrapperError`. It reads `outDir` (default `./dist`) and falls back to `build.client` inside
+  it when `output` isn't `'static'`. `buildOutputHashing` is the constant `'all'`: Astro exposes
+  no option to disable Vite's content-hashed `_astro/[name].[hash].js`. `mode` is required —
+  unlike `angular.json`, nothing enumerates Astro modes, so there is no prompt.
 
 The bucket name is always `${namePrefix}-${configurationName | mode | environmentName}`
 (`src/factories/bucket_name.ts`), i.e. one bucket per environment. `normalizeBucketName`
@@ -158,7 +163,7 @@ unmatched file may get no `Cache-Control` at all.
 **Errors** — every failure is a `Data.TaggedError` in `src/errors/`, carrying structured context
 (the S3 command, the file, the config section). Several override the `message` getter to render
 nicely (e.g. `z.prettifyError`). `src/errors/interop/` holds the wrappers used specifically at
-third-party promise boundaries (c12, clack, mrmime); keep that distinction when adding one.
+third-party promise boundaries (c12, Vite, clack, mrmime); keep that distinction when adding one.
 
 **Promise → Effect** — never call `Effect.tryPromise` directly. Use `toEffect((signal) => promise,
 ErrorClass, extraData)` / `toEffectSync(fn, ...)` from `#helpers/effect`, which maps the rejection
