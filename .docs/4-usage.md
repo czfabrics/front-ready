@@ -118,8 +118,10 @@ export default {
 } satisfies Config
 ```
 
-`astroConfigPath` is optional — `astro.config.{mjs,js,ts,mts,cjs}` is discovered automatically at the
-root of your project. Set it when your config lives elsewhere, and it is forwarded to the build as
+`astroConfigPath` is optional — `astro.config.{mjs,js,ts,mts,cjs,cts}` is discovered automatically at the
+root of your project, and loaded through Vite exactly as Astro loads it — so a TypeScript config may
+import `defineConfig` from `astro/config`, local modules, or files with a Vite suffix such as
+`?raw`. Set it when your config lives elsewhere, and it is forwarded to the build as
 `--config`:
 
 ```ts
