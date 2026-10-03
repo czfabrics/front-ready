@@ -182,3 +182,10 @@ keypress listener because clack's prompts take over stdin.
 
 **Style** — `function` expressions assigned to `const` rather than arrow functions for exported
 top-level helpers; no semicolons; prettier `printWidth: 90`.
+
+**Commits** — one commit per feature or fix, never several bundled together, in Conventional
+Commits form with a scope (`feat(bucket): …`, `fix(runtime): …`). Each commit carries its own
+tests and its own share of the docs (`.docs/`, the regenerated `README.md`, this file), and passes
+`bun run typecheck` and `bunx vitest run` on its own. When features touch the same file (e.g.
+`src/config/schema.ts`), split that file's changes between the commits rather than merging the
+commits.
