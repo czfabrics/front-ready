@@ -32,6 +32,7 @@
 		* [Supported versions](#supported-versions)
 	* [Astro front](#astro-front)
 		* [Supported versions](#supported-versions-1)
+	* [Bucket name](#bucket-name)
 	* [Cache control](#cache-control)
 * [Commands](#commands-1)
 	* [Create](#create)
@@ -284,6 +285,26 @@ added in Astro 5.0 — on Astro 4 and earlier the build fails on the unknown fla
 
 Options `frontready` doesn't need — `site`, `integrations`, `vite`, and the rest — are ignored, so
 the config doesn't have to be trimmed down.
+
+### Bucket name
+
+Each environment gets its own bucket, named `<namePrefix>-<identifier>` where the identifier is
+the Angular `configurationName`, the Astro `mode` or the custom `environmentName`. It is normalized into a valid S3 bucket name:
+
+- lowercased, with accents stripped (`é` → `e`);
+- every run of characters other than letters, digits and hyphens (`_`, `.`, spaces, …) replaced by
+  a single `-`, and hyphens trimmed from both ends;
+- kept within S3's 63 characters by cutting the **name prefix**, never the identifier, so each
+  environment keeps its own bucket — with a warning when it happens. An identifier too long to
+  leave room for any prefix is rejected.
+
+With `namePrefix: 'my-front-hosting'`, the Angular configuration `Prod_EU` deploys to
+`my-front-hosting-prod-eu`. Only the bucket name is affected: the build still receives the
+identifier as you wrote it. An identifier with no letter or digit at all (`___`) is rejected before
+any S3 call.
+
+When normalization changes the name, the CLI says so, and every command shows the bucket it works
+on (`check` and `create` in their result, `deploy` in its confirmation prompt).
 
 > **Tip:** Don't commit real credentials. Either read them from the environment — a `.env` file next to the config is loaded into `process.env` first — or leave `credentials` out entirely, and the AWS SDK's default credential chain (environment variables, shared config files, an instance or IRSA role) supplies them. `endpoint` and `apiVersion` are optional too: omit `endpoint` for AWS S3.
 

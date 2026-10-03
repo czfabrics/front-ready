@@ -108,7 +108,12 @@ here; `Match.exhaustive` turns a forgotten branch into a typecheck error.
   `mode` is required — unlike `angular.json`, nothing enumerates Astro modes, so there is no prompt.
 
 The bucket name is always `${namePrefix}-${configurationName | mode | environmentName}`
-(`src/factories/bucket_name.ts`), i.e. one bucket per environment.
+(`src/factories/bucket_name.ts`), i.e. one bucket per environment. `normalizeBucketName`
+lowercases, strips accents, turns runs of anything but `[a-z0-9-]` into `-` and trims edge hyphens.
+Past 63 chars the prefix is cut (with a `log.warn`), never the identifier — cutting it could merge
+two environments into one bucket. An identifier with no letter or digit left, or too long to leave
+room for any prefix, fails with `InvalidBucketNameError`. Never add randomness: every command must
+derive the same name. Only the bucket name is normalised; the build gets the raw identifier.
 
 ### Layer stack
 
