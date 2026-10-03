@@ -7,6 +7,20 @@ import {
 } from '#config/cache_control'
 import z from 'zod'
 
+const LifecycleCommandSchema = z.strictObject({
+  command: z.string().nonempty(),
+  args: z.array(z.string().nonempty()).default([]),
+})
+
+/** Keys every `front` type accepts, whatever builds it. */
+const commonFrontShape = {
+  /**
+   * Run by `deploy` before the build, in the current working directory — e.g.
+   * code generation or writing an env file. A non-zero exit aborts the deploy.
+   */
+  prebuild: LifecycleCommandSchema.optional(),
+}
+
 export type Config = z.input<typeof ConfigSchema>
 export type InternalConfig = z.output<typeof ConfigSchema>
 export type ConfigSchema = typeof ConfigSchema
@@ -98,6 +112,7 @@ export const ConfigSchema = z.strictObject({
   }),
   front: z.discriminatedUnion('type', [
     z.strictObject({
+      ...commonFrontShape,
       type: z.literal('angular'),
       angular: z.strictObject({
         projectName: z.string().nonempty(),
@@ -106,6 +121,7 @@ export const ConfigSchema = z.strictObject({
       }),
     }),
     z.strictObject({
+      ...commonFrontShape,
       type: z.literal('astro'),
       astro: z.strictObject({
         astroConfigPath: z.string().nonempty().optional(),
@@ -113,6 +129,7 @@ export const ConfigSchema = z.strictObject({
       }),
     }),
     z.strictObject({
+      ...commonFrontShape,
       type: z.literal('custom'),
       custom: z.strictObject({
         build: z.strictObject({

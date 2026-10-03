@@ -100,4 +100,24 @@ describe('ConfigSchema', () => {
       expect(front.defaultCacheControlValue).toBe('no-cache')
     })
   })
+
+  describe('front.prebuild', () => {
+    it('defaults the prebuild arguments to none', () => {
+      const config = ConfigSchema.parse({
+        ...BASE,
+        front: { ...BASE.front, prebuild: { command: 'npm' } },
+      })
+
+      expect(config.front.prebuild).toStrictEqual({ command: 'npm', args: [] })
+    })
+
+    it('rejects an empty prebuild command', () => {
+      const result = ConfigSchema.safeParse({
+        ...BASE,
+        front: { ...BASE.front, prebuild: { command: '' } },
+      })
+
+      expect(result.success).toBe(false)
+    })
+  })
 })

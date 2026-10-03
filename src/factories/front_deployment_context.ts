@@ -26,6 +26,11 @@ const promptAngularConfigurationName = function (
 }
 
 export const makeFrontDeploymentContextLayer = function (rootConfig: InternalConfig) {
+  const { prebuild } = rootConfig.front
+  const prebuildCommand = prebuild
+    ? Command.make(prebuild.command, ...prebuild.args)
+    : undefined
+
   return Layer.effect(
     FrontDeploymentContext,
     Match.value(rootConfig.front).pipe(
@@ -59,6 +64,7 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
             : path.join(workspaceRoot, outputPath)
 
           return {
+            prebuildCommand,
             // `ng build`'s positional argument is the project, not the configuration:
             // the latter only ever arrives through `--configuration`.
             command: Command.make(
@@ -81,6 +87,7 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
           )
 
           return {
+            prebuildCommand,
             command: Command.make(
               'astro',
               'build',
@@ -100,6 +107,7 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
       Match.when({ type: 'custom' }, (config) =>
         Effect.gen(function* () {
           return {
+            prebuildCommand,
             command: Command.make(
               config.custom.build.command,
               ...config.custom.build.args

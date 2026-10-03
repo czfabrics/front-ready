@@ -33,6 +33,7 @@
 	* [Astro front](#astro-front)
 		* [Supported versions](#supported-versions-1)
 	* [Bucket name](#bucket-name)
+	* [Prebuild](#prebuild)
 	* [Cache control](#cache-control)
 * [Commands](#commands-1)
 	* [Create](#create)
@@ -306,6 +307,27 @@ any S3 call.
 When normalization changes the name, the CLI says so, and every command shows the bucket it works
 on (`check` and `create` in their result, `deploy` in its confirmation prompt).
 
+### Prebuild
+
+Set `front.prebuild` to run a command before the build — code generation, writing an env file,
+installing dependencies… It is available to every front type:
+
+```ts
+  front: {
+    type: 'astro',
+    prebuild: {
+      command: 'npm',
+      args: ['run', 'codegen'], // optional, defaults to []
+    },
+    astro: {
+      mode: 'production',
+    },
+  },
+```
+
+Only `deploy` runs it, after checking the bucket exists and right before the build, in the current
+working directory. A non-zero exit aborts the deploy before anything is built or uploaded.
+
 > **Tip:** Don't commit real credentials. Either read them from the environment — a `.env` file next to the config is loaded into `process.env` first — or leave `credentials` out entirely, and the AWS SDK's default credential chain (environment variables, shared config files, an instance or IRSA role) supplies them. `endpoint` and `apiVersion` are optional too: omit `endpoint` for AWS S3.
 
 ### Cache control
@@ -414,7 +436,7 @@ npx @czfabrics/front-ready check       # npm
 
 ### Deploy
 
-Builds your frontend using the configuration above, then uploads the output to the bucket. The file matching `indexDocumentSuffix` (default: `index.html`) is uploaded **last** — so the new entry point only becomes available once all the hashed chunks it references are already in place, avoiding a window where clients load an `index.html` pointing at chunks that haven't been uploaded yet.
+Runs the `prebuild` command if one is configured, builds your frontend using the configuration above, then uploads the output to the bucket. The file matching `indexDocumentSuffix` (default: `index.html`) is uploaded **last** — so the new entry point only becomes available once all the hashed chunks it references are already in place, avoiding a window where clients load an `index.html` pointing at chunks that haven't been uploaded yet.
 
 ```sh
 bunx @czfabrics/front-ready deploy      # Bun

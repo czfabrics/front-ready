@@ -13,6 +13,7 @@ export type OutputHashing = z.infer<typeof OutputHashingSchema>
 export class FrontDeploymentContext extends Context.Tag('FrontDeploymentContext')<
   FrontDeploymentContext,
   {
+    readonly prebuildCommand: Command.Command | undefined
     readonly command: Command.Command
     readonly bucketName: string
     readonly buildOutputPath: string

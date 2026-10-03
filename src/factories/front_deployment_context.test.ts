@@ -43,10 +43,14 @@ const writeWorkspace = function (directory: string, outputPath: string) {
   )
 }
 
-const contextFor = function (angularJsonPath: string) {
+const contextFor = function (
+  angularJsonPath: string,
+  prebuild?: { command: string; args?: string[] }
+) {
   const config = ConfigSchema.parse({
     bucket: { namePrefix: 'front-ready', params: { region: 'eu-west-3' } },
     front: {
+      prebuild,
       type: 'angular',
       angular: { projectName: 'web', angularJsonPath, configurationName: 'production' },
     },
@@ -100,5 +104,28 @@ describe('makeFrontDeploymentContextLayer — angular', () => {
     const context = await contextFor('./apps/web/angular.json')
 
     expect(context.buildOutputPath).toBe(absolute)
+  })
+
+  it('has no prebuild command unless one is configured', async () => {
+    writeWorkspace('.', 'dist/web')
+
+    const context = await contextFor('./angular.json')
+
+    expect(context.prebuildCommand).toBeUndefined()
+  })
+
+  it('runs the prebuild command in the cwd, not the workspace', async () => {
+    writeWorkspace('apps/web', 'dist/web')
+
+    const context = await contextFor('./apps/web/angular.json', {
+      command: 'npm',
+      args: ['run', 'codegen'],
+    })
+
+    expect(
+      context.prebuildCommand?._tag === 'StandardCommand' &&
+        context.prebuildCommand.command
+    ).toBe('npm')
+    expect(workingDirectoryOf(context.prebuildCommand!)).toBeUndefined()
   })
 })
