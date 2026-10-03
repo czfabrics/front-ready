@@ -194,6 +194,23 @@ Your `cacheControlMapping` is **merged** with the defaults rather than replacing
 
 Patterns are regular expressions tested against the object key — anchor them with `^` and `$` when you mean the whole key. A pattern that does not compile, or a value with an unknown, repeated or contradictory directive (`no-store` with `max-age`, `public` with `private`, …), is rejected when the config loads, before anything is uploaded.
 
+To opt out of the defaults entirely, set `useDefaultCacheControl: false`. Both the built-in rules
+above and the built-in `defaultCacheControlValue` are dropped: only your `cacheControlMapping`
+rules apply, in your order, and a file none of them matches is uploaded **without** a
+`Cache-Control` header — unless you set `defaultCacheControlValue` yourself.
+
+```ts
+  bucket: {
+    front: {
+      useDefaultCacheControl: false,
+      cacheControlMapping: {
+        '^_astro/.+$': 'max-age=31536000, immutable',
+      },
+      // defaultCacheControlValue: 'no-cache', // optional fallback
+    },
+  },
+```
+
 If your build tool doesn't hash filenames this way, shorten the catch-all so you don't serve stale assets:
 
 ```ts

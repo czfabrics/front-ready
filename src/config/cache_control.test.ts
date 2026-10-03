@@ -1,13 +1,26 @@
-import { CacheControlMappingSchema, CacheControlSchema } from '#config/cache_control'
+import {
+  CacheControlMappingSchema,
+  CacheControlSchema,
+  resolveCacheControlRules,
+} from '#config/cache_control'
 import { describe, expect, it } from 'vitest'
 
-const patternsOf = function (overrides: Record<string, string | null> | undefined) {
-  return CacheControlMappingSchema.parse(overrides).map(({ pattern }) => pattern)
+const rulesOf = function (
+  overrides: Record<string, string | null> | undefined,
+  useDefaults = true
+) {
+  return resolveCacheControlRules(CacheControlMappingSchema.parse(overrides), useDefaults)
+}
+
+const patternsOf = function (
+  overrides: Record<string, string | null> | undefined,
+  useDefaults = true
+) {
+  return rulesOf(overrides, useDefaults).map(({ pattern }) => pattern)
 }
 
 const valueFor = function (overrides: Record<string, string | null>, key: string) {
-  return CacheControlMappingSchema.parse(overrides).find(({ regExp }) => regExp.test(key))
-    ?.value
+  return rulesOf(overrides).find(({ regExp }) => regExp.test(key))?.value
 }
 
 describe('CacheControlMappingSchema', () => {
@@ -70,6 +83,16 @@ describe('CacheControlMappingSchema', () => {
 
   it('marks hashed chunks immutable by default', () => {
     expect(valueFor({}, '_astro/x.abc123.js')).toContain('immutable')
+  })
+
+  it('keeps only your rules, in your order, with the defaults disabled', () => {
+    expect(
+      patternsOf({ '^b$': 'max-age=1', '^.+$': 'max-age=2', '^a$': null }, false)
+    ).toStrictEqual(['^b$', '^.+$'])
+  })
+
+  it('has no rule at all with the defaults disabled and nothing configured', () => {
+    expect(patternsOf(undefined, false)).toStrictEqual([])
   })
 })
 

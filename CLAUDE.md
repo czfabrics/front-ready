@@ -145,7 +145,10 @@ concurrency from `config.bucket.upload.concurrency`), then uploads the index doc
 `index.html` must only become reachable after the hashed chunks it references exist. Preserve it.
 
 Content type comes from `mrmime` on the extension; `Cache-Control` from the first matching regex in
-`cacheControlMapping`, else `defaultCacheControlValue` (`detectAndFillCacheControl`).
+`cacheControlMapping`, else `defaultCacheControlValue` (`detectAndFillCacheControl`). The
+`bucket.front` schema resolves both at parse time (`resolveCacheControlRules`):
+`useDefaultCacheControl: false` drops the built-in rules and the built-in fallback value, so an
+unmatched file may get no `Cache-Control` at all.
 
 ## Conventions
 

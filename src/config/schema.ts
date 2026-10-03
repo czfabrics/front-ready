@@ -3,6 +3,7 @@ import {
   CacheControlSchema,
   DEFAULT_CACHE_CONTROL_VALUE,
   isValidRegExp,
+  resolveCacheControlRules,
 } from '#config/cache_control'
 import z from 'zod'
 
@@ -38,12 +39,37 @@ export const ConfigSchema = z.strictObject({
     }),
     front: z
       .strictObject({
-        defaultCacheControlValue: CacheControlSchema.default(DEFAULT_CACHE_CONTROL_VALUE),
+        /**
+         * `false` drops both the built-in `cacheControlMapping` rules and the
+         * built-in `defaultCacheControlValue`: only your rules apply, and a file
+         * none of them matches is uploaded without a `Cache-Control` header —
+         * unless you set `defaultCacheControlValue` yourself.
+         */
+        useDefaultCacheControl: z.boolean().default(true),
+        defaultCacheControlValue: CacheControlSchema.optional(),
         cacheControlMapping: CacheControlMappingSchema,
         indexDocumentSuffix: z.string().nonempty().default('index.html'),
         errorDocumentKey: z.string().nonempty().default('index.html'),
       })
-      .prefault({}),
+      .prefault({})
+      .transform(
+        ({
+          useDefaultCacheControl,
+          defaultCacheControlValue,
+          cacheControlMapping,
+          ...rest
+        }) => ({
+          ...rest,
+          useDefaultCacheControl,
+          defaultCacheControlValue:
+            defaultCacheControlValue ??
+            (useDefaultCacheControl ? DEFAULT_CACHE_CONTROL_VALUE : undefined),
+          cacheControlMapping: resolveCacheControlRules(
+            cacheControlMapping,
+            useDefaultCacheControl
+          ),
+        })
+      ),
     /**
      * How objects become publicly readable. `'acl'` grants `public-read` on the
      * bucket and on every object — what most S3-compatible providers expect.
