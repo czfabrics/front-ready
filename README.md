@@ -32,6 +32,8 @@
 		* [Supported versions](#supported-versions)
 	* [Astro front](#astro-front)
 		* [Supported versions](#supported-versions-1)
+	* [Bucket name](#bucket-name)
+	* [Prebuild](#prebuild)
 	* [Cache control](#cache-control)
 * [Commands](#commands-1)
 	* [Create](#create)
@@ -285,6 +287,47 @@ added in Astro 5.0 — on Astro 4 and earlier the build fails on the unknown fla
 Options `frontready` doesn't need — `site`, `integrations`, `vite`, and the rest — are ignored, so
 the config doesn't have to be trimmed down.
 
+### Bucket name
+
+Each environment gets its own bucket, named `<namePrefix>-<identifier>` where the identifier is
+the Angular `configurationName`, the Astro `mode` or the custom `environmentName`. It is normalized into a valid S3 bucket name:
+
+- lowercased, with accents stripped (`é` → `e`);
+- every run of characters other than letters, digits and hyphens (`_`, `.`, spaces, …) replaced by
+  a single `-`, and hyphens trimmed from both ends;
+- kept within S3's 63 characters by cutting the **name prefix**, never the identifier, so each
+  environment keeps its own bucket — with a warning when it happens. An identifier too long to
+  leave room for any prefix is rejected.
+
+With `namePrefix: 'my-front-hosting'`, the Angular configuration `Prod_EU` deploys to
+`my-front-hosting-prod-eu`. Only the bucket name is affected: the build still receives the
+identifier as you wrote it. An identifier with no letter or digit at all (`___`) is rejected before
+any S3 call.
+
+When normalization changes the name, the CLI says so, and every command shows the bucket it works
+on (`check` and `create` in their result, `deploy` in its confirmation prompt).
+
+### Prebuild
+
+Set `front.prebuild` to run a command before the build — code generation, writing an env file,
+installing dependencies… It is available to every front type:
+
+```ts
+  front: {
+    type: 'astro',
+    prebuild: {
+      command: 'npm',
+      args: ['run', 'codegen'], // optional, defaults to []
+    },
+    astro: {
+      mode: 'production',
+    },
+  },
+```
+
+Only `deploy` runs it, after checking the bucket exists and right before the build, in the current
+working directory. A non-zero exit aborts the deploy before anything is built or uploaded.
+
 > **Tip:** Don't commit real credentials. Either read them from the environment — a `.env` file next to the config is loaded into `process.env` first — or leave `credentials` out entirely, and the AWS SDK's default credential chain (environment variables, shared config files, an instance or IRSA role) supplies them. `endpoint` and `apiVersion` are optional too: omit `endpoint` for AWS S3.
 
 ### Cache control
@@ -310,6 +353,23 @@ Your `cacheControlMapping` is **merged** with the defaults rather than replacing
 - `null` removes a default.
 
 Patterns are regular expressions tested against the object key — anchor them with `^` and `$` when you mean the whole key. A pattern that does not compile, or a value with an unknown, repeated or contradictory directive (`no-store` with `max-age`, `public` with `private`, …), is rejected when the config loads, before anything is uploaded.
+
+To opt out of the defaults entirely, set `useDefaultCacheControl: false`. Both the built-in rules
+above and the built-in `defaultCacheControlValue` are dropped: only your `cacheControlMapping`
+rules apply, in your order, and a file none of them matches is uploaded **without** a
+`Cache-Control` header — unless you set `defaultCacheControlValue` yourself.
+
+```ts
+  bucket: {
+    front: {
+      useDefaultCacheControl: false,
+      cacheControlMapping: {
+        '^_astro/.+$': 'max-age=31536000, immutable',
+      },
+      // defaultCacheControlValue: 'no-cache', // optional fallback
+    },
+  },
+```
 
 If your build tool doesn't hash filenames this way, shorten the catch-all so you don't serve stale assets:
 
@@ -376,7 +436,7 @@ npx @czfabrics/front-ready check       # npm
 
 ### Deploy
 
-Builds your frontend using the configuration above, then uploads the output to the bucket. The file matching `indexDocumentSuffix` (default: `index.html`) is uploaded **last** — so the new entry point only becomes available once all the hashed chunks it references are already in place, avoiding a window where clients load an `index.html` pointing at chunks that haven't been uploaded yet.
+Runs the `prebuild` command if one is configured, builds your frontend using the configuration above, then uploads the output to the bucket. The file matching `indexDocumentSuffix` (default: `index.html`) is uploaded **last** — so the new entry point only becomes available once all the hashed chunks it references are already in place, avoiding a window where clients load an `index.html` pointing at chunks that haven't been uploaded yet.
 
 ```sh
 bunx @czfabrics/front-ready deploy      # Bun

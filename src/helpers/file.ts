@@ -34,7 +34,7 @@ export const fileIntoObject = function (file: FileItem) {
 export const detectAndFillCacheControl = function (
   object: FileObject,
   cacheControlRules: ReadonlyArray<CacheControlRule>,
-  defaultCacheControlValue: string
+  defaultCacheControlValue: string | undefined
 ): FileObject {
   const rule = cacheControlRules.find(({ regExp }) => regExp.test(object.key))
 

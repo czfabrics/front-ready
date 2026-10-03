@@ -65,4 +65,59 @@ describe('ConfigSchema', () => {
   it('defaults to ACL-based public access', () => {
     expect(ConfigSchema.parse(BASE).bucket.accessMode).toBe('acl')
   })
+
+  describe('useDefaultCacheControl', () => {
+    const frontOf = function (front: Record<string, unknown>) {
+      return ConfigSchema.parse({ ...BASE, bucket: { ...BASE.bucket, front } }).bucket
+        .front
+    }
+
+    it('applies the default rules and value unless disabled', () => {
+      const front = frontOf({})
+
+      expect(front.defaultCacheControlValue).toBeDefined()
+      expect(front.cacheControlMapping.map(({ pattern }) => pattern)).toContain('^.+$')
+    })
+
+    it('drops both the default rules and the default value when disabled', () => {
+      const front = frontOf({
+        useDefaultCacheControl: false,
+        cacheControlMapping: { '^x$': 'max-age=60' },
+      })
+
+      expect(front.defaultCacheControlValue).toBeUndefined()
+      expect(front.cacheControlMapping.map(({ pattern }) => pattern)).toStrictEqual([
+        '^x$',
+      ])
+    })
+
+    it('keeps a default value set explicitly when disabled', () => {
+      const front = frontOf({
+        useDefaultCacheControl: false,
+        defaultCacheControlValue: 'no-cache',
+      })
+
+      expect(front.defaultCacheControlValue).toBe('no-cache')
+    })
+  })
+
+  describe('front.prebuild', () => {
+    it('defaults the prebuild arguments to none', () => {
+      const config = ConfigSchema.parse({
+        ...BASE,
+        front: { ...BASE.front, prebuild: { command: 'npm' } },
+      })
+
+      expect(config.front.prebuild).toStrictEqual({ command: 'npm', args: [] })
+    })
+
+    it('rejects an empty prebuild command', () => {
+      const result = ConfigSchema.safeParse({
+        ...BASE,
+        front: { ...BASE.front, prebuild: { command: '' } },
+      })
+
+      expect(result.success).toBe(false)
+    })
+  })
 })

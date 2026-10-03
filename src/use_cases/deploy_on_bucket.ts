@@ -37,6 +37,19 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
             })
           }
 
+          if (deploymentContext.prebuildCommand) {
+            yield* genCommandUi({
+              command: deploymentContext.prebuildCommand,
+              message: {
+                resolveStart: () => 'Running prebuild',
+                resolveError: (error) => `Prebuild failed: ${error.message}`,
+                resolveCancel: () => 'Prebuild canceled',
+                resolveEnd: (duration) =>
+                  `Prebuild finished in ${Duration.toMillis(duration)}ms`,
+              },
+            })
+          }
+
           yield* genCommandUi({
             command: deploymentContext.command,
             message: {

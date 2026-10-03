@@ -175,9 +175,10 @@ export const mergeCacheControlMapping = function (
 }
 
 /**
- * Validated and compiled once, at config load: an uncompilable pattern used to
- * pass validation and then throw mid-deploy, after part of the bucket had already
- * been overwritten.
+ * Validated at config load: an uncompilable pattern used to pass validation and
+ * then throw mid-deploy, after part of the bucket had already been overwritten.
+ * Merged and compiled by `resolveCacheControlRules`, once the config says whether
+ * the defaults apply.
  */
 export const CacheControlMappingSchema = z
   .record(
@@ -185,12 +186,24 @@ export const CacheControlMappingSchema = z
     CacheControlSchema.nullable()
   )
   .default({})
-  .transform((overrides) =>
-    mergeCacheControlMapping(overrides).map(
-      ([pattern, value]): CacheControlRule => ({
-        pattern,
-        regExp: new RegExp(pattern),
-        value,
-      })
-    )
-  )
+
+/**
+ * Your rules merged with the defaults (see `mergeCacheControlMapping`), or — with
+ * the defaults disabled — your rules alone, in your order, a `null` one dropped.
+ */
+export const resolveCacheControlRules = function (
+  overrides: Readonly<Record<string, string | null>>,
+  useDefaults: boolean
+): CacheControlRule[] {
+  const rules = useDefaults
+    ? mergeCacheControlMapping(overrides)
+    : Object.entries(overrides).filter(
+        (rule): rule is [string, string] => rule[1] !== null
+      )
+
+  return rules.map(([pattern, value]) => ({
+    pattern,
+    regExp: new RegExp(pattern),
+    value,
+  }))
+}

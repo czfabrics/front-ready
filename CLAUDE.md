@@ -86,10 +86,10 @@ the same way:
 ### The config shapes collapse into one context
 
 `src/factories/front_deployment_context.ts` is the key file. It `Match`es on `config.front.type`
-and produces a single `FrontDeploymentContext` — `{ command, bucketName, buildOutputPath,
-buildOutputHashing }` — so nothing downstream knows which framework the project uses. Adding a
-front type means a new member in the `front` discriminated union plus a new `Match.when` branch
-here; `Match.exhaustive` turns a forgotten branch into a typecheck error.
+and produces a single `FrontDeploymentContext` — `{ prebuildCommand, command, bucketName,
+buildOutputPath, buildOutputHashing }` — so nothing downstream knows which framework the project
+uses. Adding a front type means a new member in the `front` discriminated union plus a new
+`Match.when` branch here; `Match.exhaustive` turns a forgotten branch into a typecheck error.
 
 - `custom`: command and output path come straight from config; `buildOutputHashing` is `undefined`
   (hence `check`'s "unable to determine" warning).
@@ -108,7 +108,15 @@ here; `Match.exhaustive` turns a forgotten branch into a typecheck error.
   `mode` is required — unlike `angular.json`, nothing enumerates Astro modes, so there is no prompt.
 
 The bucket name is always `${namePrefix}-${configurationName | mode | environmentName}`
-(`src/factories/bucket_name.ts`), i.e. one bucket per environment.
+(`src/factories/bucket_name.ts`), i.e. one bucket per environment. `normalizeBucketName`
+lowercases, strips accents, turns runs of anything but `[a-z0-9-]` into `-` and trims edge hyphens.
+Past 63 chars the prefix is cut (with a `log.warn`), never the identifier — cutting it could merge
+two environments into one bucket. An identifier with no letter or digit left, or too long to leave
+room for any prefix, fails with `InvalidBucketNameError`. Never add randomness: every command must
+derive the same name. Only the bucket name is normalised; the build gets the raw identifier.
+
+`front.prebuild` (`{ command, args }`, shared by every front type) becomes `prebuildCommand`, run
+by `deploy` in the cwd after the bucket check and before the build.
 
 ### Layer stack
 
@@ -140,7 +148,10 @@ concurrency from `config.bucket.upload.concurrency`), then uploads the index doc
 `index.html` must only become reachable after the hashed chunks it references exist. Preserve it.
 
 Content type comes from `mrmime` on the extension; `Cache-Control` from the first matching regex in
-`cacheControlMapping`, else `defaultCacheControlValue` (`detectAndFillCacheControl`).
+`cacheControlMapping`, else `defaultCacheControlValue` (`detectAndFillCacheControl`). The
+`bucket.front` schema resolves both at parse time (`resolveCacheControlRules`):
+`useDefaultCacheControl: false` drops the built-in rules and the built-in fallback value, so an
+unmatched file may get no `Cache-Control` at all.
 
 ## Conventions
 
@@ -171,3 +182,10 @@ keypress listener because clack's prompts take over stdin.
 
 **Style** — `function` expressions assigned to `const` rather than arrow functions for exported
 top-level helpers; no semicolons; prettier `printWidth: 90`.
+
+**Commits** — one commit per feature or fix, never several bundled together, in Conventional
+Commits form with a scope (`feat(bucket): …`, `fix(runtime): …`). Each commit carries its own
+tests and its own share of the docs (`.docs/`, the regenerated `README.md`, this file), and passes
+`bun run typecheck` and `bunx vitest run` on its own. When features touch the same file (e.g.
+`src/config/schema.ts`), split that file's changes between the commits rather than merging the
+commits.
