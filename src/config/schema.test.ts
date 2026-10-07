@@ -101,6 +101,67 @@ describe('ConfigSchema', () => {
     })
   })
 
+  describe('default cacheControlMapping per front type', () => {
+    const FRONTS = {
+      angular: {
+        type: 'angular',
+        angular: { projectName: 'app', angularJsonPath: 'angular.json' },
+      },
+      astro: { type: 'astro', astro: { mode: 'production' } },
+      custom: BASE.front,
+    } as const
+
+    const patternsOf = function (
+      type: keyof typeof FRONTS,
+      front: Record<string, unknown> = {}
+    ) {
+      return ConfigSchema.parse({
+        ...BASE,
+        bucket: { ...BASE.bucket, front },
+        front: FRONTS[type],
+      }).bucket.front.cacheControlMapping.map(({ pattern }) => pattern)
+    }
+
+    it('keeps the Angular rules for an Angular front', () => {
+      expect(patternsOf('angular')).toStrictEqual([
+        '^index\\.html$',
+        '^assets/.+$',
+        '^translate/.+$',
+        '^.+\\.html$',
+        '^.+$',
+      ])
+    })
+
+    it('caches Astro and Pagefind hashed files, not the Angular folders', () => {
+      expect(patternsOf('astro')).toStrictEqual([
+        '^_astro/.+$',
+        '^pagefind/.+\\.(pf_meta|pf_index|pf_fragment)$',
+        '^.+\\.html$',
+        '^.+$',
+      ])
+    })
+
+    it('assumes nothing is hashed for a custom front', () => {
+      expect(patternsOf('custom')).toStrictEqual(['^.+\\.html$', '^.+$'])
+    })
+
+    it('keeps an overridden Astro catch-all last, after the HTML rule', () => {
+      const patterns = patternsOf('astro', {
+        cacheControlMapping: { '^protos/.+\\.zip$': 'max-age=60', '^.+$': 'max-age=1' },
+      })
+
+      expect(patterns.at(0)).toBe('^protos/.+\\.zip$')
+      expect(patterns.at(-1)).toBe('^.+$')
+    })
+
+    it.each(['angular', 'astro', 'custom'] as const)(
+      'drops the %s defaults when disabled',
+      (type) => {
+        expect(patternsOf(type, { useDefaultCacheControl: false })).toStrictEqual([])
+      }
+    )
+  })
+
   describe('front.prebuild', () => {
     it('defaults the prebuild arguments to none', () => {
       const config = ConfigSchema.parse({

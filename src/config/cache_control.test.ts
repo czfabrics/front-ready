@@ -1,6 +1,7 @@
 import {
   CacheControlMappingSchema,
   CacheControlSchema,
+  DEFAULT_CACHE_CONTROL_MAPPINGS,
   resolveCacheControlRules,
 } from '#config/cache_control'
 import { describe, expect, it } from 'vitest'
@@ -9,7 +10,11 @@ const rulesOf = function (
   overrides: Record<string, string | null> | undefined,
   useDefaults = true
 ) {
-  return resolveCacheControlRules(CacheControlMappingSchema.parse(overrides), useDefaults)
+  // Merging is the same whatever the front type; the Angular set is the fullest.
+  return resolveCacheControlRules(
+    CacheControlMappingSchema.parse(overrides),
+    useDefaults ? DEFAULT_CACHE_CONTROL_MAPPINGS.angular : undefined
+  )
 }
 
 const patternsOf = function (
