@@ -446,6 +446,17 @@ yarn dlx @czfabrics/front-ready deploy  # Yarn
 npx @czfabrics/front-ready deploy       # npm
 ```
 
+`deploy` asks for confirmation before it builds. In a pipeline, skip it with `--yes` (or `-y`); it
+is also skipped whenever the `CI` environment variable is set — as GitHub Actions, GitLab CI and
+most other providers do — unless it is `false` or `0`. The target bucket is still logged.
+
+```sh
+bunx @czfabrics/front-ready deploy --yes
+```
+
+Without the prompt nothing can be asked, so an Angular project must set
+`front.angular.configurationName`: `deploy` fails rather than offer the configuration picker.
+
 ### Exit codes
 
 Every command ends on an outro and reports its outcome through the exit code, so CI can trust it:

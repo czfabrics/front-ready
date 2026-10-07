@@ -26,3 +26,14 @@ export class AngularJsonSyntaxError extends Data.TaggedError('AngularJsonSyntaxE
   readonly angularJsonPath: string
   readonly cause: UnknownException
 }> {}
+
+export class AngularConfigurationNameMissingError extends Data.TaggedError(
+  'AngularConfigurationNameMissingError'
+)<{
+  readonly projectName: string
+  readonly angularJsonPath: string
+}> {
+  public override get message(): string {
+    return `No Angular configuration name for '${this.projectName}', and none can be picked without a prompt — set \`front.angular.configurationName\``
+  }
+}

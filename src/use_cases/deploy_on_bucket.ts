@@ -1,3 +1,4 @@
+import { CliCommandContext } from '#contexts/cli_command'
 import { FrontDeploymentContext } from '#contexts/front_deployment'
 import { InternalConfigContext } from '#contexts/internal_config'
 import { BucketNotFoundError } from '#errors/bucket'
@@ -9,6 +10,7 @@ import { genCommandUi } from '#ui/command'
 import { genConfirmUi } from '#ui/confirm'
 import { genLoaderUi } from '#ui/loader'
 import { genTaskLogsUi } from '#ui/tasks'
+import { log } from '@clack/prompts'
 import { Duration, Effect } from 'effect'
 
 export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>()(
@@ -20,13 +22,23 @@ export class DeployOnBucketUseCase extends Effect.Service<DeployOnBucketUseCase>
 
       return {
         run: genFn(function* () {
-          const shouldContinue = yield* genConfirmUi({
-            question: `Do you want to build and upload '${deploymentContext.buildOutputPath}' to bucket '${deploymentContext.bucketName}'?`,
-            initialValue: false,
-          })
+          const { assumeYes } = yield* CliCommandContext
 
-          if (!shouldContinue) {
-            return yield* Effect.interrupt
+          // Without the prompt, still say what is about to happen: the CI log is
+          // the only place left that shows which bucket a deploy went to.
+          if (assumeYes) {
+            log.info(
+              `Building and uploading '${deploymentContext.buildOutputPath}' to bucket '${deploymentContext.bucketName}' (confirmation skipped)`
+            )
+          } else {
+            const shouldContinue = yield* genConfirmUi({
+              question: `Do you want to build and upload '${deploymentContext.buildOutputPath}' to bucket '${deploymentContext.bucketName}'?`,
+              initialValue: false,
+            })
+
+            if (!shouldContinue) {
+              return yield* Effect.interrupt
+            }
           }
 
           const doesBucketExist = yield* frontService.doesFrontBucketExist()

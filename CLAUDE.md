@@ -74,11 +74,14 @@ The three commands in `src/cli/` are thin: each names its use case and its outro
 them to `runCliCommand` (`src/cli/command_runner.ts`), which owns the shared lifecycle. Add a fourth
 the same way:
 
-1. `Layer.succeed(CliCommandContext, { commandName })`.
+1. `Layer.succeed(CliCommandContext, { commandName, assumeYes })`. `assumeYes` (default `false`)
+   is set by `deploy --yes`/`-y` or when `CI` is set (`isCiEnvironment` in `#helpers/ci`): the
+   use case skips its confirmation (logging the target instead), and the factory is built with
+   `{ interactive: false }` so nothing prompts.
 2. `startCli()` prints the intro banner and loads config (`c12` finds `frontready.config.*` in the
    user's cwd, then `ConfigSchema.safeParse` from `src/config/schema.ts` applies defaults).
 3. Build two layers from the parsed config: `InternalConfigContext` (raw validated config) and
-   `makeFrontDeploymentContextLayer(config)`.
+   `makeFrontDeploymentContextLayer(config, { interactive: !assumeYes })`.
 4. Run the use case via `runAndInterruptOnCtrlC`, with `Effect.onInterrupt` → `cancel(...)` and
    `Effect.catchAll` → log + `outro(...)`. Config loading sits inside that same handling. Commands
    never throw; they always end on an outro, and report the outcome through the exit code:
@@ -100,7 +103,8 @@ uses. Adding a front type means a new member in the `front` discriminated union 
   builder's implicit `/browser` suffix). Its paths are workspace-relative, so the factory runs
   `ng build` in the folder holding `angular.json` and resolves the output path there too. If
   `configurationName` is absent from config, the factory prompts for one among that project's
-  build configurations — resolved into a local, never written back onto the parsed config.
+  build configurations — resolved into a local, never written back onto the parsed config. With
+  `{ interactive: false }` it fails with `AngularConfigurationNameMissingError` instead.
 - `astro`: `src/helpers/astro.ts` loads `astro.config.*` **the way Astro does**, not through c12
   (whose native-`import()`-then-jiti path rejects configs Astro accepts, e.g. `?raw` imports or
   extensionless TS imports). It looks for `astro.config.{mjs,js,ts,mts,cjs,cts}` in the cwd in

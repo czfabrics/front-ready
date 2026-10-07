@@ -1,4 +1,5 @@
 import { renderErrorDetails, runCliCommand } from '#cli/command_runner'
+import { CliCommandContext } from '#contexts/cli_command'
 import { CANCEL_EXIT_CODE, FAILURE_EXIT_CODE } from '#core/exit_codes'
 import { BucketNotFoundError } from '#errors/bucket'
 import { NodeContext } from '@effect/platform-node'
@@ -56,11 +57,14 @@ afterEach(() => {
   process.exitCode = undefined
 })
 
-const run = async function (program: Effect.Effect<void, unknown>) {
+const run = async function (
+  program: Effect.Effect<void, unknown, CliCommandContext>,
+  assumeYes?: boolean
+) {
   // `runPromiseExit`: a cancellation still ends interrupted once the outro is out,
   // which is what `runMain` sees — the exit code set on the way is what matters.
   await Effect.runPromiseExit(
-    runCliCommand({ commandName: 'test', program, messages: MESSAGES }).pipe(
+    runCliCommand({ commandName: 'test', assumeYes, program, messages: MESSAGES }).pipe(
       Effect.provide(NodeContext.layer)
     )
   )
@@ -103,6 +107,30 @@ describe('runCliCommand', () => {
     const exitCode = await run(Effect.void)
 
     expect(exitCode).toBe(FAILURE_EXIT_CODE)
+  })
+})
+
+describe('runCliCommand — assumeYes', () => {
+  const readAssumeYes = async function (assumeYes?: boolean) {
+    fs.writeFileSync('frontready.config.ts', CONFIG)
+
+    let seen: boolean | undefined
+    await run(
+      Effect.map(CliCommandContext, (context) => {
+        seen = context.assumeYes
+      }),
+      assumeYes
+    )
+
+    return seen
+  }
+
+  it('is off unless asked for, so commands keep prompting', async () => {
+    expect(await readAssumeYes()).toBe(false)
+  })
+
+  it('reaches the command when asked for', async () => {
+    expect(await readAssumeYes(true)).toBe(true)
   })
 })
 
