@@ -1,9 +1,10 @@
 import { ConfigSchema } from '#config/schema'
 import { FrontDeploymentContext } from '#contexts/front_deployment'
+import { AngularConfigurationNameMissingError } from '#errors/angular'
 import { makeFrontDeploymentContextLayer } from '#factories/front_deployment_context'
 import { Command } from '@effect/platform'
 import { NodeContext } from '@effect/platform-node'
-import { Effect, Option } from 'effect'
+import { Effect, Exit, Option } from 'effect'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as nodePath from 'node:path'
@@ -127,5 +128,37 @@ describe('makeFrontDeploymentContextLayer — angular', () => {
         context.prebuildCommand.command
     ).toBe('npm')
     expect(workingDirectoryOf(context.prebuildCommand!)).toBeUndefined()
+  })
+})
+
+describe('makeFrontDeploymentContextLayer — non-interactive', () => {
+  // With `deploy --yes` or in CI there is no one to answer the configuration
+  // picker: it must fail rather than hang the pipeline on a prompt.
+  it('fails instead of prompting for a missing Angular configuration name', async () => {
+    writeWorkspace('.', 'dist/web')
+
+    const config = ConfigSchema.parse({
+      bucket: { namePrefix: 'front-ready', params: { region: 'eu-west-3' } },
+      front: {
+        type: 'angular',
+        angular: { projectName: 'web', angularJsonPath: './angular.json' },
+      },
+    })
+
+    const exit = await Effect.runPromiseExit(
+      FrontDeploymentContext.pipe(
+        Effect.provide(makeFrontDeploymentContextLayer(config, { interactive: false })),
+        Effect.provide(NodeContext.layer)
+      )
+    )
+
+    expect(exit).toStrictEqual(
+      Exit.fail(
+        new AngularConfigurationNameMissingError({
+          projectName: 'web',
+          angularJsonPath: './angular.json',
+        })
+      )
+    )
   })
 })

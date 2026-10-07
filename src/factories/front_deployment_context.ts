@@ -1,5 +1,6 @@
 import { InternalConfig } from '#config/schema'
 import { FrontDeploymentContext } from '#contexts/front_deployment'
+import { AngularConfigurationNameMissingError } from '#errors/angular'
 import { makeDeploymentBucketName } from '#factories/bucket_name'
 import { getAngularConfigurations, resolveAngularConfiguration } from '#helpers/angular'
 import { resolveAstroConfiguration } from '#helpers/astro'
@@ -25,7 +26,14 @@ const promptAngularConfigurationName = function (
   })
 }
 
-export const makeFrontDeploymentContextLayer = function (rootConfig: InternalConfig) {
+/**
+ * `interactive: false` (deploy `--yes`, CI) never prompts: whatever a prompt would
+ * have resolved must come from the config, or building the context fails.
+ */
+export const makeFrontDeploymentContextLayer = function (
+  rootConfig: InternalConfig,
+  { interactive = true }: { interactive?: boolean } = {}
+) {
   const { prebuild } = rootConfig.front
   const prebuildCommand = prebuild
     ? Command.make(prebuild.command, ...prebuild.args)
@@ -43,10 +51,15 @@ export const makeFrontDeploymentContextLayer = function (rootConfig: InternalCon
           // what was actually validated.
           const configurationName =
             config.angular.configurationName ??
-            (yield* promptAngularConfigurationName(
-              config.angular.angularJsonPath,
-              config.angular.projectName
-            ))
+            (interactive
+              ? yield* promptAngularConfigurationName(
+                  config.angular.angularJsonPath,
+                  config.angular.projectName
+                )
+              : yield* new AngularConfigurationNameMissingError({
+                  projectName: config.angular.projectName,
+                  angularJsonPath: config.angular.angularJsonPath,
+                }))
 
           const { outputPath, outputHashing } = yield* resolveAngularConfiguration(
             config.angular.angularJsonPath,

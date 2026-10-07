@@ -40,10 +40,12 @@ const renderErrorMessage = function (error: unknown): string {
  */
 export const runCliCommand = function <TError, TDeps>({
   commandName,
+  assumeYes = false,
   program,
   messages,
 }: {
   commandName: string
+  assumeYes?: boolean
   program: Effect.Effect<void, TError, TDeps>
   messages: { finished: string; canceled: string; aborted: string }
 }) {
@@ -52,14 +54,16 @@ export const runCliCommand = function <TError, TDeps>({
 
     yield* runAndInterruptOnCtrlC(
       program.pipe(
-        Effect.provide(makeFrontDeploymentContextLayer(config)),
+        Effect.provide(
+          makeFrontDeploymentContextLayer(config, { interactive: !assumeYes })
+        ),
         Effect.provide(Layer.succeed(InternalConfigContext, config))
       )
     )
 
     outro(messages.finished)
   }).pipe(
-    Effect.provide(Layer.succeed(CliCommandContext, { commandName })),
+    Effect.provide(Layer.succeed(CliCommandContext, { commandName, assumeYes })),
     Effect.onInterrupt(() =>
       Effect.sync(() => {
         cancel(messages.canceled)
