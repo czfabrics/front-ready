@@ -94,6 +94,8 @@ and produces a single `FrontDeploymentContext` — `{ prebuildCommand, command, 
 buildOutputPath, buildOutputHashing }` — so nothing downstream knows which framework the project
 uses. Adding a front type means a new member in the `front` discriminated union plus a new
 `Match.when` branch here; `Match.exhaustive` turns a forgotten branch into a typecheck error.
+It also needs its built-in cache rules in `DEFAULT_CACHE_CONTROL_MAPPINGS`
+(`src/config/cache_control.ts`), keyed by front type, so a missing entry is a typecheck error too.
 
 - `custom`: command and output path come straight from config; `buildOutputHashing` is `undefined`
   (hence `check`'s "unable to determine" warning).
@@ -157,8 +159,10 @@ concurrency from `config.bucket.upload.concurrency`), then uploads the index doc
 `index.html` must only become reachable after the hashed chunks it references exist. Preserve it.
 
 Content type comes from `mrmime` on the extension; `Cache-Control` from the first matching regex in
-`cacheControlMapping`, else `defaultCacheControlValue` (`detectAndFillCacheControl`). The
-`bucket.front` schema resolves both at parse time (`resolveCacheControlRules`):
+`cacheControlMapping`, else `defaultCacheControlValue` (`detectAndFillCacheControl`). Both are
+resolved at parse time. The rules are merged with the built-in set for `front.type` in a
+root-level `ConfigSchema` transform, because `bucket.front` can't see the front type
+(`resolveCacheControlRules`):
 `useDefaultCacheControl: false` drops the built-in rules and the built-in fallback value, so an
 unmatched file may get no `Cache-Control` at all.
 

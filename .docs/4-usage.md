@@ -195,19 +195,37 @@ working directory. A non-zero exit aborts the deploy before anything is built or
 
 ### Cache control
 
-The default cache configuration assumes your build emits **content-hashed (randomly named) chunk files** — the standard cache-busting pattern where a file's name changes whenever its contents change. This lets hashed assets be cached aggressively while the entry point stays fresh.
+The built-in rules depend on `front.type`, because each build tool names its files differently. A **content-hashed** file has a name that changes whenever its contents change, so it can be cached for a year and marked `immutable`. Every other file, and every HTML page, has to stay fresh.
 
-Each object key is tested against the `cacheControlMapping` patterns in order, and the first match wins; nothing matching falls back to `defaultCacheControlValue`. The defaults are:
+Each object key is tested against the `cacheControlMapping` patterns in order, and the first match wins. A key that matches nothing falls back to `defaultCacheControlValue`, which is `max-age=60, stale-while-revalidate=600, stale-if-error=86400` for every type. In the tables below, every value also carries `stale-while-revalidate=600, stale-if-error=86400`.
 
-| Pattern          | `Cache-Control`                                                                 |
-| ---------------- | ------------------------------------------------------------------------------- |
-| `^index\.html$`  | `max-age=60, stale-while-revalidate=600, stale-if-error=86400`                  |
-| `^assets/.+$`    | `max-age=86400, stale-while-revalidate=600, stale-if-error=86400`               |
-| `^translate/.+$` | `max-age=14400, stale-while-revalidate=600, stale-if-error=86400`               |
-| `^.+\.html$`     | `max-age=60, stale-while-revalidate=600, stale-if-error=86400`                  |
-| `^.+$`           | `max-age=31536000, immutable, stale-while-revalidate=600, stale-if-error=86400` |
+**`angular`**: everything outside `assets/` and `translate/` is a hashed bundle.
 
-The `^.+\.html$` rule keeps **every** page on the short cache — not only the root `index.html` — since a multi-page build (any Astro static site, or Angular with prerendering) emits `about/index.html` and the like, which must never be pinned for a year. Everything else falls to the `^.+$` catch-all: a hashed chunk, cached for a year and marked `immutable`.
+| Pattern          | `Cache-Control`               |
+| ---------------- | ----------------------------- |
+| `^index\.html$`  | `max-age=60`                  |
+| `^assets/.+$`    | `max-age=86400`               |
+| `^translate/.+$` | `max-age=14400`               |
+| `^.+\.html$`     | `max-age=60`                  |
+| `^.+$`           | `max-age=31536000, immutable` |
+
+**`astro`**: Vite hashes everything under `_astro/`, and Pagefind (Starlight's search, for example) hashes its index chunks. Everything else is copied from `public/` under its original name, so it gets one day.
+
+| Pattern                                           | `Cache-Control`               |
+| ------------------------------------------------- | ----------------------------- |
+| `^_astro/.+$`                                     | `max-age=31536000, immutable` |
+| `^pagefind/.+\.(pf_meta\|pf_index\|pf_fragment)$` | `max-age=31536000, immutable` |
+| `^.+\.html$`                                      | `max-age=60`                  |
+| `^.+$`                                            | `max-age=86400`               |
+
+**`custom`**: there is no way to know how the build names its files, so nothing is cached for a year. To give your hashed folder a long cache, add a rule for it.
+
+| Pattern      | `Cache-Control` |
+| ------------ | --------------- |
+| `^.+\.html$` | `max-age=60`    |
+| `^.+$`       | `max-age=86400` |
+
+The `^.+\.html$` rule keeps **every** page on the short cache, not only the root `index.html`. A multi-page build (any static Astro site, or Angular with prerendering) emits files like `about/index.html`, and those must never be pinned for a year.
 
 Your `cacheControlMapping` is **merged** with the defaults rather than replacing them:
 
@@ -217,8 +235,8 @@ Your `cacheControlMapping` is **merged** with the defaults rather than replacing
 
 Patterns are regular expressions tested against the object key — anchor them with `^` and `$` when you mean the whole key. A pattern that does not compile, or a value with an unknown, repeated or contradictory directive (`no-store` with `max-age`, `public` with `private`, …), is rejected when the config loads, before anything is uploaded.
 
-To opt out of the defaults entirely, set `useDefaultCacheControl: false`. Both the built-in rules
-above and the built-in `defaultCacheControlValue` are dropped: only your `cacheControlMapping`
+To opt out of the defaults entirely, set `useDefaultCacheControl: false`. Both your front type's
+built-in rules and the built-in `defaultCacheControlValue` are dropped: only your `cacheControlMapping`
 rules apply, in your order, and a file none of them matches is uploaded **without** a
 `Cache-Control` header — unless you set `defaultCacheControlValue` yourself.
 
@@ -234,7 +252,7 @@ rules apply, in your order, and a file none of them matches is uploaded **withou
   },
 ```
 
-If your build tool doesn't hash filenames this way, shorten the catch-all so you don't serve stale assets:
+For example, on an Angular front whose build doesn't hash filenames, shorten the catch-all so you don't serve stale assets:
 
 ```ts
 import { Config } from '{{ pkg.name }}'

@@ -163,6 +163,7 @@ describe('pickIndexDocument', () => {
 
 describe('detectAndFillCacheControl', () => {
   const SHORT_CACHE = 'max-age=60, stale-while-revalidate=600, stale-if-error=86400'
+  const DAY_CACHE = 'max-age=86400, stale-while-revalidate=600, stale-if-error=86400'
   const ONE_YEAR_CACHE =
     'max-age=31536000, immutable, stale-while-revalidate=600, stale-if-error=86400'
 
@@ -203,6 +204,15 @@ describe('detectAndFillCacheControl', () => {
 
   it('keeps hashed assets on a one-year cache', () => {
     expect(cacheControlOf('_astro/x.abc123.js')).toBe(ONE_YEAR_CACHE)
+  })
+
+  it('keeps Pagefind index chunks on a one-year cache', () => {
+    expect(cacheControlOf('pagefind/fragment/en_abc123.pf_fragment')).toBe(ONE_YEAR_CACHE)
+  })
+
+  // Copied from `public/` under its own name: pinning it would serve it stale.
+  it('gives an unhashed public file a one-day cache', () => {
+    expect(cacheControlOf('favicon.svg')).toBe(DAY_CACHE)
   })
 })
 

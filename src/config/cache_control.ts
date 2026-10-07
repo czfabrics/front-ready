@@ -116,19 +116,46 @@ export const CacheControlSchema = z
   )
 
 const SHORT_CACHE = 'max-age=60, stale-while-revalidate=600, stale-if-error=86400'
+const FOUR_HOURS_CACHE = 'max-age=14400, stale-while-revalidate=600, stale-if-error=86400'
+const DAY_CACHE = 'max-age=86400, stale-while-revalidate=600, stale-if-error=86400'
+// Only for a key whose name changes with its content.
+const ONE_YEAR_CACHE =
+  'max-age=31536000, immutable, stale-while-revalidate=600, stale-if-error=86400'
+
+/** Written out rather than imported: `#config/schema` imports this module. */
+type FrontType = 'angular' | 'astro' | 'custom'
 
 /**
- * Tried in order, first match wins — so the catch-all must stay last, and every
- * HTML page sits above it: a multi-page build emits `about/index.html` and the
- * like, which must never be pinned for a year.
+ * The built-in rules, picked by `front.type`. Each set is tried in order, first
+ * match wins — so its catch-all must stay last, and every HTML page sits above
+ * it: a multi-page build emits `about/index.html` and the like, which must never
+ * be pinned for a year.
  */
-export const DEFAULT_CACHE_CONTROL_MAPPING: Readonly<Record<string, string>> = {
-  '^index\\.html$': SHORT_CACHE,
-  '^assets/.+$': 'max-age=86400, stale-while-revalidate=600, stale-if-error=86400',
-  '^translate/.+$': 'max-age=14400, stale-while-revalidate=600, stale-if-error=86400',
-  '^.+\\.html$': SHORT_CACHE,
-  // Everything left is a content-hashed chunk: its name changes with its content.
-  '^.+$': 'max-age=31536000, immutable, stale-while-revalidate=600, stale-if-error=86400',
+export const DEFAULT_CACHE_CONTROL_MAPPINGS: Readonly<
+  Record<FrontType, Readonly<Record<string, string>>>
+> = {
+  angular: {
+    '^index\\.html$': SHORT_CACHE,
+    '^assets/.+$': DAY_CACHE,
+    '^translate/.+$': FOUR_HOURS_CACHE,
+    '^.+\\.html$': SHORT_CACHE,
+    // Everything left is a content-hashed chunk: its name changes with its content.
+    '^.+$': ONE_YEAR_CACHE,
+  },
+  astro: {
+    // Vite's `_astro/[name].[hash].*`, which Astro offers no way to unhash.
+    '^_astro/.+$': ONE_YEAR_CACHE,
+    // Pagefind (e.g. Starlight's search) names its index chunks by content hash.
+    '^pagefind/.+\\.(pf_meta|pf_index|pf_fragment)$': ONE_YEAR_CACHE,
+    '^.+\\.html$': SHORT_CACHE,
+    // What is left comes from `public/`, copied under its own, unhashed name.
+    '^.+$': DAY_CACHE,
+  },
+  // Nothing says how a custom build names its files, so nothing is pinned for long.
+  custom: {
+    '^.+\\.html$': SHORT_CACHE,
+    '^.+$': DAY_CACHE,
+  },
 }
 
 export const DEFAULT_CACHE_CONTROL_VALUE = SHORT_CACHE
@@ -157,12 +184,13 @@ export const isValidRegExp = function (pattern: string): boolean {
  * dropped the catch-all and every hashed chunk lost its year-long cache.
  */
 export const mergeCacheControlMapping = function (
-  overrides: Readonly<Record<string, string | null>>
+  overrides: Readonly<Record<string, string | null>>,
+  defaultMapping: Readonly<Record<string, string>>
 ): Array<[string, string]> {
   const added = Object.entries(overrides).filter(
-    ([pattern]) => !Object.hasOwn(DEFAULT_CACHE_CONTROL_MAPPING, pattern)
+    ([pattern]) => !Object.hasOwn(defaultMapping, pattern)
   )
-  const defaults = Object.entries(DEFAULT_CACHE_CONTROL_MAPPING).map(
+  const defaults = Object.entries(defaultMapping).map(
     ([pattern, value]): [string, string | null] => [
       pattern,
       Object.hasOwn(overrides, pattern) ? overrides[pattern]! : value,
@@ -189,14 +217,15 @@ export const CacheControlMappingSchema = z
 
 /**
  * Your rules merged with the defaults (see `mergeCacheControlMapping`), or — with
- * the defaults disabled — your rules alone, in your order, a `null` one dropped.
+ * no defaults (`useDefaultCacheControl: false`) — your rules alone, in your
+ * order, a `null` one dropped.
  */
 export const resolveCacheControlRules = function (
   overrides: Readonly<Record<string, string | null>>,
-  useDefaults: boolean
+  defaultMapping: Readonly<Record<string, string>> | undefined
 ): CacheControlRule[] {
-  const rules = useDefaults
-    ? mergeCacheControlMapping(overrides)
+  const rules = defaultMapping
+    ? mergeCacheControlMapping(overrides, defaultMapping)
     : Object.entries(overrides).filter(
         (rule): rule is [string, string] => rule[1] !== null
       )
