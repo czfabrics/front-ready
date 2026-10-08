@@ -80,6 +80,9 @@ the same way:
    `{ interactive: false }` so nothing prompts.
 2. `startCli()` prints the intro banner and loads config (`c12` finds `frontready.config.*` in the
    user's cwd, then `ConfigSchema.safeParse` from `src/config/schema.ts` applies defaults).
+   `jiti` is a direct dependency on purpose: c12 only lists it as an optional peer and falls
+   back to it when a native `import()` can't load the config (e.g. a `.ts` file Node's type
+   stripping rejects), so without it users would have to install it themselves.
 3. Build two layers from the parsed config: `InternalConfigContext` (raw validated config) and
    `makeFrontDeploymentContextLayer(config, { interactive: !assumeYes })`.
 4. Run the use case via `runAndInterruptOnCtrlC`, with `Effect.onInterrupt` → `cancel(...)` and
