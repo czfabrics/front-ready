@@ -1,5 +1,7 @@
 ## Installation
 
+Requires Node.js `^20.19.0 || >=22.12.0`.
+
 ### Bun
 
 ```sh

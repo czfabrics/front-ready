@@ -61,6 +61,8 @@ A framework-aware deployment tool for static frontends. It reads your project's 
 
 ## Installation
 
+Requires Node.js `^20.19.0 || >=22.12.0`.
+
 ### Bun
 
 ```sh
