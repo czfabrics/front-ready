@@ -66,19 +66,19 @@ Requires Node.js `^20.19.0 || >=22.12.0`.
 ### Bun
 
 ```sh
-bun add @czfabrics/front-ready@0.1.0-beta.9
+bun add @czfabrics/front-ready@0.1.0
 ```
 
 ### Yarn
 
 ```sh
-yarn add @czfabrics/front-ready@0.1.0-beta.9
+yarn add @czfabrics/front-ready@0.1.0
 ```
 
 ### NPM
 
 ```sh
-npm install @czfabrics/front-ready@0.1.0-beta.9
+npm install @czfabrics/front-ready@0.1.0
 ```
 
 
